@@ -1,5 +1,5 @@
 // Takes the README's screenshots at phone size: npm run screenshots
-// Builds a fresh demo repository (scripts/demo-repo.mjs) in a temporary folder, starts codeview on it, seeds a few
+// Builds a fresh demo repository (scripts/demo-repo.mjs) in a temporary folder, starts folderview on it, seeds a few
 // review comments and saves docs/screenshots/*.png. SHOTS=code,diff takes only those.
 // Needs Playwright's Chromium: npx playwright install chromium
 import { chromium } from 'playwright';
@@ -14,7 +14,7 @@ const out = path.join(here, 'docs', 'screenshots');
 const only = process.env.SHOTS ? new Set(process.env.SHOTS.split(',')) : undefined;
 fs.mkdirSync(out, { recursive: true });
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'codeview-shots-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'folderview-shots-'));
 const target = path.join(tmp, 'trailhead');
 makeDemo(target);
 const server = await start({ root: target, port: 0, host: '127.0.0.1', readOnly: false, watch: false, git: true, allowHosts: [], reviewDir: '.review', author: 'Phil' });

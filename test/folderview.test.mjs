@@ -22,7 +22,7 @@ const write = (p, t) => {
 };
 
 before(() => {
-  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'codeview-')));
+  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'folderview-')));
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Tester');
   git('config', 'user.email', 't@example.com');
@@ -192,14 +192,14 @@ test('exclude patterns: names, folders, anchored paths, ** and exceptions', () =
   assert.deepEqual(names, ['a.ts']);
 });
 
-test('settings: flags beat environment beat .codeviewrc.json beat the global config; lists add up', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'codeview-home-'));
-  fs.mkdirSync(path.join(home, 'codeview'));
-  fs.writeFileSync(path.join(home, 'codeview', 'config.json'), JSON.stringify({ port: 5000, exclude: ['*.global'], title: 'Global' }));
-  fs.writeFileSync(path.join(root, '.codeviewrc.json'), JSON.stringify({ port: 5100, exclude: ['*.project'], readOnly: true }));
-  fs.writeFileSync(path.join(root, '.codeviewignore'), '# comment\n*.ignored\n');
+test('settings: flags beat environment beat .folderviewrc.json beat the global config; lists add up', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'folderview-home-'));
+  fs.mkdirSync(path.join(home, 'folderview'));
+  fs.writeFileSync(path.join(home, 'folderview', 'config.json'), JSON.stringify({ port: 5000, exclude: ['*.global'], title: 'Global' }));
+  fs.writeFileSync(path.join(root, '.folderviewrc.json'), JSON.stringify({ port: 5100, exclude: ['*.project'], readOnly: true }));
+  fs.writeFileSync(path.join(root, '.folderviewignore'), '# comment\n*.ignored\n');
   try {
-    const env = { XDG_CONFIG_HOME: home, CODEVIEW_PORT: '5200', CODEVIEW_EXCLUDE: '*.env1,*.env2', CODEVIEW_READ_ONLY: 'false' };
+    const env = { XDG_CONFIG_HOME: home, FOLDERVIEW_PORT: '5200', FOLDERVIEW_EXCLUDE: '*.env1,*.env2', FOLDERVIEW_READ_ONLY: 'false' };
     const r = resolveConfig([root, '--exclude', '*.flag', '--title', 'Flag'], env).settings;
     assert.equal(r.port, 5200);
     assert.equal(r.title, 'Flag');
@@ -213,8 +213,8 @@ test('settings: flags beat environment beat .codeviewrc.json beat the global con
     assert.throws(() => resolveConfig([root, '--nope'], {}), /Unknown option/);
     assert.throws(() => resolveConfig([root, '--port', 'x'], {}), /port/);
   } finally {
-    fs.rmSync(path.join(root, '.codeviewrc.json'));
-    fs.rmSync(path.join(root, '.codeviewignore'));
+    fs.rmSync(path.join(root, '.folderviewrc.json'));
+    fs.rmSync(path.join(root, '.folderviewignore'));
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
@@ -248,7 +248,7 @@ test('downloads, folder zips, a token and a base path', async () => {
   }
 });
 
-test('codeview review prints the open comments, or says there are none', () => {
+test('folderview review prints the open comments, or says there are none', () => {
   const dir = path.join(root, '.review-cli');
   const r = new Review(dir, root);
   const run = (...a) => execFileSync(process.execPath, [path.join(import.meta.dirname, '..', 'dist', 'cli.js'), 'review', root, '--review-dir', dir, ...a], { encoding: 'utf8' });

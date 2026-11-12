@@ -88,10 +88,10 @@ export function renderDiagram(source) {
     const dark = isDark();
     m.initialize({ startOnLoad: false, securityLevel: 'strict', ...(l ? themeOf(l, dark) : { theme: dark ? 'dark' : 'default' }) });
     try {
-      const { svg } = await m.render(`codeview-diagram-${++count}`, source);
+      const { svg } = await m.render(`folderview-diagram-${++count}`, source);
       return { ok: true, svg: sizedSvg(svg) };
     } catch (e) {
-      document.getElementById(`dcodeview-diagram-${count}`)?.remove(); // mermaid leaves its error drawing behind
+      document.getElementById(`dfolderview-diagram-${count}`)?.remove(); // mermaid leaves its error drawing behind
       return { ok: false, problem: e instanceof Error ? e.message : String(e) };
     }
   });

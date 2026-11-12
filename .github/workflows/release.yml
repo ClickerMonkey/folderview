@@ -1,4 +1,4 @@
-# Publishes codeview to npm with trusted publishing (no stored token): run it from the Actions tab, or push a
+# Publishes folderview to npm with trusted publishing (no stored token): run it from the Actions tab, or push a
 # v* tag. Bump the version in package.json first, and run `npm test` locally (the tests need git and a browser-free
 # Node, but they are run before releasing, not here).
 name: Release

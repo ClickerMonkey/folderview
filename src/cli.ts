@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// codeview [folder] [options]: browse, search and review a folder in the browser.
-// codeview review [folder] [--all] [--json]: print the review comments left in it (for you, or for an agent).
+// folderview [folder] [options]: browse, search and review a folder in the browser.
+// folderview review [folder] [--all] [--json]: print the review comments left in it (for you, or for an agent).
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -10,7 +10,7 @@ import { start } from './server.js';
 import { Review, agentPrompt, toMarkdown } from './review.js';
 
 function fail(msg: string): never {
-  console.error(`codeview: ${msg}`);
+  console.error(`folderview: ${msg}`);
   process.exit(1);
 }
 
@@ -49,7 +49,7 @@ const reviewDir = path.resolve(s.root, s.reviewDir);
 const mdRel = rel(path.join(reviewDir, 'REVIEW.md'));
 const jsonRel = rel(path.join(reviewDir, 'comments.json'));
 
-// `codeview review`: the comments, as an agent should read them, and nothing else
+// `folderview review`: the comments, as an agent should read them, and nothing else
 if (reviewCommand) {
   const comments = new Review(reviewDir, s.root).all();
   const shown = all ? comments : comments.filter((c) => c.status === 'open');
@@ -80,14 +80,14 @@ const running = await start({
     if (open === lastOpen) return;
     lastOpen = open;
     const time = new Date().toLocaleTimeString();
-    if (open) console.log(`[${time}] review: ${open} open comment${open === 1 ? '' : 's'} (of ${total}) → ${mdRel}  (or run: npx codeview review)`);
+    if (open) console.log(`[${time}] review: ${open} open comment${open === 1 ? '' : 's'} (of ${total}) → ${mdRel}  (or run: npx folderview review)`);
     else console.log(`[${time}] review: no open comments (${total} resolved)`);
   },
 }).catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
 const suffix = s.base + (s.token ? `?token=${encodeURIComponent(s.token)}` : '');
 const everywhere = s.host === '0.0.0.0' || s.host === '::';
 const hostShown = everywhere || s.host === '127.0.0.1' || s.host === '::1' ? 'localhost' : s.host;
-console.log(`codeview ${s.root}`);
+console.log(`folderview ${s.root}`);
 console.log(`  http://${hostShown}:${running.port}${suffix}`);
 if (everywhere) for (const ip of lanAddresses()) console.log(`  http://${ip}:${running.port}${suffix}`);
 else if (s.host === '127.0.0.1') console.log('  (add --lan to open it from other devices)');
@@ -99,7 +99,7 @@ console.log('  For an agent: "' + agentPrompt(mdRel, jsonRel) + '"');
   const existing = new Review(reviewDir, s.root).all();
   const open = existing.filter((c) => c.status === 'open').length;
   lastOpen = open;
-  if (open) console.log(`  There ${open === 1 ? 'is 1 open comment' : `are ${open} open comments`} waiting: npx codeview review`);
+  if (open) console.log(`  There ${open === 1 ? 'is 1 open comment' : `are ${open} open comments`} waiting: npx folderview review`);
 }
 if (s.open) openBrowser(`http://localhost:${running.port}${suffix}`);
 

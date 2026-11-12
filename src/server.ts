@@ -117,15 +117,15 @@ export async function start(opts: Options): Promise<Running> {
     const p = '/' + url.pathname.slice(base.length);
     // a token: once in the address (it becomes a cookie), as a bearer header, or the cookie
     if (token) {
-      const given = url.searchParams.get('token') ?? bearer(req) ?? cookie(req, 'codeview_token') ?? '';
+      const given = url.searchParams.get('token') ?? bearer(req) ?? cookie(req, 'folderview_token') ?? '';
       if (!same(given, token)) {
         if (p === '/' || p === '/index.html') return void res.writeHead(401, { 'content-type': 'text/html; charset=utf-8' }).end(LOCKED);
-        return json(res, 401, { error: 'This codeview needs its token: open the link with ?token=… once.' });
+        return json(res, 401, { error: 'This folderview needs its token: open the link with ?token=… once.' });
       }
       if (url.searchParams.has('token')) {
         // keep it as a cookie and take it out of the address bar
         url.searchParams.delete('token');
-        res.setHeader('set-cookie', `codeview_token=${encodeURIComponent(token)}; Path=${base}; HttpOnly; SameSite=Strict; Max-Age=31536000`);
+        res.setHeader('set-cookie', `folderview_token=${encodeURIComponent(token)}; Path=${base}; HttpOnly; SameSite=Strict; Max-Age=31536000`);
         if (p === '/' || p === '/index.html') return void res.writeHead(302, { location: base + (url.search || '') }).end();
       }
     }
@@ -136,7 +136,7 @@ export async function start(opts: Options): Promise<Running> {
       // writes come only from this page: a JSON body and our own origin
       const origin = req.headers.origin;
       if (origin && new URL(origin).host !== req.headers.host) return json(res, 403, { error: 'Cross-origin write refused' });
-      if (opts.readOnly) return json(res, 403, { error: 'This codeview is read-only' });
+      if (opts.readOnly) return json(res, 403, { error: 'This folderview is read-only' });
     }
 
     if (p === '/' || p === '/index.html') return sendStatic(res, path.join(clientDir, 'index.html'));
@@ -346,7 +346,7 @@ function listen(server: http.Server, port: number, host: string, tries = 20): Pr
 }
 
 const LOCKED =
-  '<!doctype html><meta name="viewport" content="width=device-width"><title>codeview</title><body style="font:16px system-ui;padding:2em;max-width:36em;margin:auto"><h1>🔒 This codeview needs its token</h1><p>Open the link you were given (it ends in <code>?token=…</code>). It is kept as a cookie, so you only need it once.</p>';
+  '<!doctype html><meta name="viewport" content="width=device-width"><title>folderview</title><body style="font:16px system-ui;padding:2em;max-width:36em;margin:auto"><h1>🔒 This folderview needs its token</h1><p>Open the link you were given (it ends in <code>?token=…</code>). It is kept as a cookie, so you only need it once.</p>';
 
 const bearer = (req: http.IncomingMessage) => /^Bearer (.+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
 const cookie = (req: http.IncomingMessage, name: string) => {

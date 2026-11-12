@@ -1,5 +1,5 @@
 /*
- * codeview's look: the harness web app's design tokens (one indigo accent, calm neutrals, light and dark written once
+ * folderview's look: the harness web app's design tokens (one indigo accent, calm neutrals, light and dark written once
  * with light-dark()), its code block (a caption bar with wrap and copy, quiet token colours), plus git's colours.
  * Phones scroll the page itself (no inner scroll areas), so the browser's toolbars collapse and nothing jumps.
  */

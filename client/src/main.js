@@ -76,7 +76,7 @@ async function render() {
   else closeFile();
   if (closing) document.scrollingElement.scrollTop = folderScroll.get(w.folder) || 0;
   if (wide.matches) renderTree();
-  document.title = `${w.open || (w.m === 'search' ? '“' + w.q + '”' : w.folder.split('/').pop() || state.info.name)} — codeview`;
+  document.title = `${w.open || (w.m === 'search' ? '“' + w.q + '”' : w.folder.split('/').pop() || state.info.name)} — folderview`;
 }
 
 // ── live updates ──
@@ -133,7 +133,7 @@ function settingsPanel() {
   <label>Your name on comments <input data-s="author" placeholder="${esc(state.info.author)}" value="${esc(s.author)}"></label>
   <h3>Shortcuts</h3>
   <dl class="keys"><dt><kbd>Ctrl</kbd> <kbd>P</kbd></dt><dd>Go to a file</dd><dt><kbd>/</kbd></dt><dd>Search</dd><dt><kbd>Esc</kbd></dt><dd>Close the file</dd><dt><kbd>Shift</kbd>-click</dt><dd>Select a range of lines</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>Save a comment</dd></dl>
-  <p class="faint">codeview ${esc(state.info.version || '')} · ${esc(state.info.root || '')}</p>`;
+  <p class="faint">folderview ${esc(state.info.version || '')} · ${esc(state.info.root || '')}</p>`;
   document.body.append(pop);
   for (const el of pop.querySelectorAll('[data-s]')) {
     const k = el.dataset.s;

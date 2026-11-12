@@ -1,6 +1,6 @@
-// Settings from, highest first: command-line flags, environment variables, the folder's .codeviewrc.json, the user's
-// config file ($XDG_CONFIG_HOME/codeview/config.json, ~/.config/codeview/config.json), then defaults.
-// Exclude patterns add up from every source, plus the folder's .codeviewignore.
+// Settings from, highest first: command-line flags, environment variables, the folder's .folderviewrc.json, the user's
+// config file ($XDG_CONFIG_HOME/folderview/config.json, ~/.config/folderview/config.json), then defaults.
+// Exclude patterns add up from every source, plus the folder's .folderviewignore.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -58,29 +58,29 @@ export const DEFAULTS: Omit<Settings, 'sources' | 'configFiles'> = {
 
 /** The environment variable for each setting. */
 export const ENV: Record<string, keyof typeof DEFAULTS> = {
-  CODEVIEW_ROOT: 'root',
-  CODEVIEW_PORT: 'port',
-  CODEVIEW_HOST: 'host',
-  CODEVIEW_BASE: 'base',
-  CODEVIEW_OPEN: 'open',
-  CODEVIEW_EXCLUDE: 'exclude',
-  CODEVIEW_HIDE: 'hide',
-  CODEVIEW_SHOW_SECRETS: 'showSecrets',
-  CODEVIEW_GIT: 'git',
-  CODEVIEW_WATCH: 'watch',
-  CODEVIEW_READ_ONLY: 'readOnly',
-  CODEVIEW_ALLOW_HOSTS: 'allowHosts',
-  CODEVIEW_TOKEN: 'token',
-  CODEVIEW_REVIEW_DIR: 'reviewDir',
-  CODEVIEW_TITLE: 'title',
-  CODEVIEW_AUTHOR: 'author',
-  CODEVIEW_MAX_FILE_MB: 'maxFileMb',
+  FOLDERVIEW_ROOT: 'root',
+  FOLDERVIEW_PORT: 'port',
+  FOLDERVIEW_HOST: 'host',
+  FOLDERVIEW_BASE: 'base',
+  FOLDERVIEW_OPEN: 'open',
+  FOLDERVIEW_EXCLUDE: 'exclude',
+  FOLDERVIEW_HIDE: 'hide',
+  FOLDERVIEW_SHOW_SECRETS: 'showSecrets',
+  FOLDERVIEW_GIT: 'git',
+  FOLDERVIEW_WATCH: 'watch',
+  FOLDERVIEW_READ_ONLY: 'readOnly',
+  FOLDERVIEW_ALLOW_HOSTS: 'allowHosts',
+  FOLDERVIEW_TOKEN: 'token',
+  FOLDERVIEW_REVIEW_DIR: 'reviewDir',
+  FOLDERVIEW_TITLE: 'title',
+  FOLDERVIEW_AUTHOR: 'author',
+  FOLDERVIEW_MAX_FILE_MB: 'maxFileMb',
 };
 
-export const HELP = `codeview: browse, search and review a folder in your browser
+export const HELP = `folderview: browse, search and review a folder in your browser
 
-Usage: codeview [folder] [options]
-       codeview review [folder] [--all] [--json]   print the review comments (open ones, unless --all)
+Usage: folderview [folder] [options]
+       folderview review [folder] [--all] [--json]   print the review comments (open ones, unless --all)
 
   folder                  the folder to serve (default: the current folder)
   -p, --port <n>          port to try first (default 4190; the next free one is used)
@@ -105,9 +105,9 @@ Usage: codeview [folder] [options]
   -v, --version
   -h, --help
 
-Every option also reads from an environment variable (CODEVIEW_PORT, CODEVIEW_HOST,
-CODEVIEW_EXCLUDE, CODEVIEW_TOKEN, …), from .codeviewrc.json in the folder, and from
-~/.config/codeview/config.json. Patterns in the folder's .codeviewignore are excluded too.`;
+Every option also reads from an environment variable (FOLDERVIEW_PORT, FOLDERVIEW_HOST,
+FOLDERVIEW_EXCLUDE, FOLDERVIEW_TOKEN, …), from .folderviewrc.json in the folder, and from
+~/.config/folderview/config.json. Patterns in the folder's .folderviewignore are excluded too.`;
 
 type Raw = Partial<Record<keyof typeof DEFAULTS, unknown>>;
 
@@ -142,9 +142,9 @@ function readJson(file: string): Raw | undefined {
 }
 
 export function globalConfigPath(env: NodeJS.ProcessEnv = process.env): string {
-  if (env['CODEVIEW_CONFIG']) return path.resolve(env['CODEVIEW_CONFIG']);
+  if (env['FOLDERVIEW_CONFIG']) return path.resolve(env['FOLDERVIEW_CONFIG']);
   const base = env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
-  return path.join(base, 'codeview', 'config.json');
+  return path.join(base, 'folderview', 'config.json');
 }
 
 export interface Parsed {
@@ -264,7 +264,7 @@ export function resolve(argv: string[], env: NodeJS.ProcessEnv = process.env, cw
   const rootArg = flags.raw.root ?? envRaw.root;
   const root = path.resolve(cwd, typeof rootArg === 'string' ? rootArg : '.');
   const globalFile = globalConfigPath(env);
-  const projectFile = path.join(root, '.codeviewrc.json');
+  const projectFile = path.join(root, '.folderviewrc.json');
   const globalRaw = readJson(globalFile);
   const projectRaw = readJson(projectFile);
   const layers: [string, Raw | undefined][] = [
@@ -293,7 +293,7 @@ export function resolve(argv: string[], env: NodeJS.ProcessEnv = process.env, cw
       sources[k] = source;
     }
   }
-  const ignoreFile = path.join(root, '.codeviewignore');
+  const ignoreFile = path.join(root, '.folderviewignore');
   if (fs.existsSync(ignoreFile)) {
     const lines = fs.readFileSync(ignoreFile, 'utf8').split(/\r?\n/);
     const pats = lines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
@@ -353,5 +353,5 @@ export function describe(s: Settings): string {
     const shown = Array.isArray(v) ? (v.length ? v.join(', ') : '(none)') : v === '' ? '(none)' : String(v);
     return `  ${k.padEnd(12)} ${shown.padEnd(36)} ${s.sources[k] ?? 'default'}`;
   });
-  return ['codeview settings:', ...rows].join('\n');
+  return ['folderview settings:', ...rows].join('\n');
 }

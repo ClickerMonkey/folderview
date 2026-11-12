@@ -1,13 +1,13 @@
-# codeview
+# folderview
 
 Browse, search and review any folder in your browser, on your computer or your phone.
 
 ```sh
-npx codeview                       # the current folder, on http://localhost:4190
-npx codeview ~/my-app --lan --open # another folder, reachable from your phone too
+npx folderview                       # the current folder, on http://localhost:4190
+npx folderview ~/my-app --lan --open # another folder, reachable from your phone too
 ```
 
-Or install it once with `npm i -g codeview`, then run `codeview`.
+Or install it once with `npm i -g folderview`, then run `folderview`.
 
 You get:
 
@@ -20,7 +20,7 @@ You get:
 - A **review mode**. Your comments on lines are saved to a file that an LLM agent can read and work through. Its
   replies show up in your browser as it works.
 
-The screenshots show codeview at phone size, open on a small demo repository (`npm run screenshots` builds it).
+The screenshots show folderview at phone size, open on a small demo repository (`npm run screenshots` builds it).
 
 | | | |
 |:-:|:-:|:-:|
@@ -100,41 +100,41 @@ When a file changes on disk, open pages update by themselves: the listing, the g
 3. **Hand it to your agent.** The Review page has **Copy prompt for an agent**. Paste it into Claude Code (or any
    coding agent). The agent reads `REVIEW.md`, makes the changes, then sets each comment to `"resolved"` in
    `comments.json` and adds a reply.
-4. **Watch it work.** codeview watches `comments.json`, so the agent's replies and resolutions appear in your
+4. **Watch it work.** folderview watches `comments.json`, so the agent's replies and resolutions appear in your
    browser as they happen.
 
 ### Where to look for feedback
 
-codeview points you, or your agent, at the feedback in three places:
+folderview points you, or your agent, at the feedback in three places:
 
 - **When it starts:** the terminal shows where comments are saved, plus an instruction you can paste into an agent:
 
   ```
   Review feedback is saved to .review/REVIEW.md (and .review/comments.json).
   For an agent: "Read .review/REVIEW.md. It lists review comments on files in this folder ..."
-  There are 2 open comments waiting: npx codeview review
+  There are 2 open comments waiting: npx folderview review
   ```
 
-- **While it runs:** each time the comments change, it prints a line. An agent that started codeview in the
+- **While it runs:** each time the comments change, it prints a line. An agent that started folderview in the
   background sees these in its output:
 
   ```
-  [9:16:04 PM] review: 2 open comments (of 2) → .review/REVIEW.md  (or run: npx codeview review)
+  [9:16:04 PM] review: 2 open comments (of 2) → .review/REVIEW.md  (or run: npx folderview review)
   [9:16:24 PM] review: no open comments (2 resolved)
   ```
 
-- **Any time:** `codeview review` prints the open comments in the folder (the same text as `REVIEW.md`), even when
-  codeview isn't running. Add `--all` to include resolved ones, or `--json` for a script.
+- **Any time:** `folderview review` prints the open comments in the folder (the same text as `REVIEW.md`), even when
+  folderview isn't running. Add `--all` to include resolved ones, or `--json` for a script.
 
   ```sh
-  npx codeview review            # what's open, with instructions for an agent
-  npx codeview review ../app --all --json
+  npx folderview review            # what's open, with instructions for an agent
+  npx folderview review ../app --all --json
   ```
 
 To make an agent check on its own, add a line to its instructions file (`CLAUDE.md`, `AGENTS.md`, …):
 
 ```md
-Before finishing a task, run `npx codeview review` and work through any open review comments.
+Before finishing a task, run `npx folderview review` and work through any open review comments.
 ```
 
 Comments have replies, editing, resolve and reopen, and delete. Agents and scripts can also use the
@@ -143,37 +143,37 @@ Comments have replies, editing, resolve and reopen, and delete. Agents and scrip
 ## Options
 
 ```
-codeview [folder] [options]
+folderview [folder] [options]
 ```
 
 | Option | Environment variable | Default | |
 |---|---|---|---|
-| `folder` | `CODEVIEW_ROOT` | the current folder | The folder to serve |
-| `-p, --port <n>` | `CODEVIEW_PORT` | `4190` | The port to try first; the next free one is used |
-| `-H, --host <addr>` | `CODEVIEW_HOST` | `127.0.0.1` | The address to listen on |
+| `folder` | `FOLDERVIEW_ROOT` | the current folder | The folder to serve |
+| `-p, --port <n>` | `FOLDERVIEW_PORT` | `4190` | The port to try first; the next free one is used |
+| `-H, --host <addr>` | `FOLDERVIEW_HOST` | `127.0.0.1` | The address to listen on |
 | `--lan` | | | Same as `--host 0.0.0.0`: reachable from your phone and other devices |
-| `--base <path>` | `CODEVIEW_BASE` | `/` | Serve under a URL path, such as `/code/`, behind a reverse proxy |
-| `-o, --open` | `CODEVIEW_OPEN` | off | Open it in your browser |
-| `-x, --exclude <globs>` | `CODEVIEW_EXCLUDE` | | Never show, serve, search or zip these. Comma-separated and repeatable. See [Excluding files](#excluding-files). |
-| `--hide <names>` | `CODEVIEW_HIDE` | | Exact names to hide everywhere (`.git` always is) |
-| `--show-secrets` | `CODEVIEW_SHOW_SECRETS` | off | Show `.env*`, `*.key`, `*.pem` and `id_rsa`-style files |
-| `--token <t>` | `CODEVIEW_TOKEN` | | Require a token. Open `?token=…` once and it's kept as a cookie. |
-| `--allow-host <h>` | `CODEVIEW_ALLOW_HOSTS` | | Also accept this host name, such as a tunnel's (`*` for any) |
-| `--review-dir <dir>` | `CODEVIEW_REVIEW_DIR` | `.review` | Where comments are saved |
-| `--title <name>` | `CODEVIEW_TITLE` | the folder's name | The name at the top of the page |
-| `--author <name>` | `CODEVIEW_AUTHOR` | git `user.name` | The default name on comments |
-| `--max-file-mb <n>` | `CODEVIEW_MAX_FILE_MB` | `5` | Larger files aren't shown as text or searched (download still works) |
-| `--read-only` | `CODEVIEW_READ_ONLY` | off | Nobody can add comments |
-| `--no-git` | `CODEVIEW_GIT=false` | git on | Don't use git |
-| `--no-watch` | `CODEVIEW_WATCH=false` | watch on | No live updates |
+| `--base <path>` | `FOLDERVIEW_BASE` | `/` | Serve under a URL path, such as `/code/`, behind a reverse proxy |
+| `-o, --open` | `FOLDERVIEW_OPEN` | off | Open it in your browser |
+| `-x, --exclude <globs>` | `FOLDERVIEW_EXCLUDE` | | Never show, serve, search or zip these. Comma-separated and repeatable. See [Excluding files](#excluding-files). |
+| `--hide <names>` | `FOLDERVIEW_HIDE` | | Exact names to hide everywhere (`.git` always is) |
+| `--show-secrets` | `FOLDERVIEW_SHOW_SECRETS` | off | Show `.env*`, `*.key`, `*.pem` and `id_rsa`-style files |
+| `--token <t>` | `FOLDERVIEW_TOKEN` | | Require a token. Open `?token=…` once and it's kept as a cookie. |
+| `--allow-host <h>` | `FOLDERVIEW_ALLOW_HOSTS` | | Also accept this host name, such as a tunnel's (`*` for any) |
+| `--review-dir <dir>` | `FOLDERVIEW_REVIEW_DIR` | `.review` | Where comments are saved |
+| `--title <name>` | `FOLDERVIEW_TITLE` | the folder's name | The name at the top of the page |
+| `--author <name>` | `FOLDERVIEW_AUTHOR` | git `user.name` | The default name on comments |
+| `--max-file-mb <n>` | `FOLDERVIEW_MAX_FILE_MB` | `5` | Larger files aren't shown as text or searched (download still works) |
+| `--read-only` | `FOLDERVIEW_READ_ONLY` | off | Nobody can add comments |
+| `--no-git` | `FOLDERVIEW_GIT=false` | git on | Don't use git |
+| `--no-watch` | `FOLDERVIEW_WATCH=false` | watch on | No live updates |
 | `--print-config` | | | Print the settings and where each came from, then exit |
 
 Settings come from these places, highest first:
 
 1. **Flags** on the command line.
 2. **Environment variables.**
-3. **`.codeviewrc.json`** in the folder.
-4. **Your config file**, `~/.config/codeview/config.json`. `$XDG_CONFIG_HOME` moves it, or set `CODEVIEW_CONFIG` to
+3. **`.folderviewrc.json`** in the folder.
+4. **Your config file**, `~/.config/folderview/config.json`. `$XDG_CONFIG_HOME` moves it, or set `FOLDERVIEW_CONFIG` to
    any path.
 5. **The defaults.**
 
@@ -192,8 +192,8 @@ Both config files use the option names in camelCase:
 
 ## Excluding files
 
-Exclude patterns add up from every source: your config file, `.codeviewrc.json`, `CODEVIEW_EXCLUDE`, `--exclude`,
-and a **`.codeviewignore`** file in the folder (one pattern per line, `#` for comments). They use `.gitignore`
+Exclude patterns add up from every source: your config file, `.folderviewrc.json`, `FOLDERVIEW_EXCLUDE`, `--exclude`,
+and a **`.folderviewignore`** file in the folder (one pattern per line, `#` for comments). They use `.gitignore`
 syntax:
 
 | Pattern | Excludes |
@@ -217,7 +217,7 @@ Git-ignored files (like `node_modules`) are shown dimmed, and search skips them.
 ## Safety
 
 - **Local by default.** It listens on `127.0.0.1` unless you pass `--lan` or `--host`. Anyone who can reach the port
-  can read every file that isn't hidden or excluded. On a shared network, add `--token` (or `CODEVIEW_TOKEN`).
+  can read every file that isn't hidden or excluded. On a shared network, add `--token` (or `FOLDERVIEW_TOKEN`).
 - **Nothing outside the folder** is served, even through symlinks.
 - **DNS rebinding:** requests for unknown host names are refused. Use `--allow-host` for a tunnel or proxy name.
 - **Writes** (comments) must come from the page itself. Posts from other sites are refused.
@@ -226,7 +226,7 @@ Git-ignored files (like `node_modules`) are shown dimmed, and search skips them.
   - HTML previews are sandboxed.
   - Markdown is sanitised.
   - Mermaid runs in strict mode and is drawn as an image.
-- **Writes nothing else.** The only files codeview writes are in the review folder.
+- **Writes nothing else.** The only files folderview writes are in the review folder.
 
 ## The API
 

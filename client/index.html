@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f8f8fb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#16171c" media="(prefers-color-scheme: dark)" />
-    <title>codeview</title>
+    <title>folderview</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b5fd6'/><path d='M12 10l-6 6 6 6M20 10l6 6-6 6' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
     <link rel="stylesheet" href="assets/app.css" />
     <script>
       // the saved theme before anything draws, so a dark page never flashes white
       try {
-        const t = localStorage.getItem('codeview:theme');
+        const t = localStorage.getItem('folderview:theme');
         if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
       } catch {}
     </script>

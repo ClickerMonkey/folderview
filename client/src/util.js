@@ -40,9 +40,9 @@ export const coll = new Intl.Collator(undefined, { numeric: true, sensitivity: '
 
 export function store(k, v) {
   try {
-    if (v === undefined) return localStorage.getItem('codeview:' + k);
-    if (v === null) localStorage.removeItem('codeview:' + k);
-    else localStorage.setItem('codeview:' + k, v);
+    if (v === undefined) return localStorage.getItem('folderview:' + k);
+    if (v === null) localStorage.removeItem('folderview:' + k);
+    else localStorage.setItem('folderview:' + k, v);
   } catch {
     return null;
   }

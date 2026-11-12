@@ -1,11 +1,11 @@
 ---
-title: What codeview renders
+title: What folderview renders
 tags: markdown, mermaid, math
 ---
 
-# What codeview renders
+# What folderview renders
 
-Markdown is drawn the way GitHub draws it, plus diagrams and math. Open this file in codeview to see it.
+Markdown is drawn the way GitHub draws it, plus diagrams and math. Open this file in folderview to see it.
 
 > [!NOTE]
 > Relative links like [the README](../../README.md) open in the viewer, and `path#L12` links jump to a line.
@@ -14,7 +14,7 @@ Markdown is drawn the way GitHub draws it, plus diagrams and math. Open this fil
 
 ```mermaid
 flowchart TD
-  you([You]) -->|click a line| cv[codeview]
+  you([You]) -->|click a line| cv[folderview]
   cv -->|saves| json[(.review/comments.json)]
   json --> md[REVIEW.md]
   md -->|reads| agent([Your agent])
@@ -24,7 +24,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
   participant B as Browser
-  participant S as codeview server
+  participant S as folderview server
   B->>S: GET api/git/status
   S-->>B: branch, changes, ignored
   S--)B: event: change (a file was saved)

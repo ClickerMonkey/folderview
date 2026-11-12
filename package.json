@@ -1,10 +1,10 @@
 {
-  "name": "codeview",
+  "name": "folderview",
   "version": "0.1.0",
   "description": "Browse, search and review any folder in your browser: highlighted code, rendered markdown with mermaid and math, git status and diffs, full-text search, downloads, and review comments saved where an LLM can read them.",
   "type": "module",
   "bin": {
-    "codeview": "dist/cli.js"
+    "folderview": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -53,11 +53,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ClickerMonkey/codeview.git"
+    "url": "git+https://github.com/ClickerMonkey/folderview.git"
   },
-  "homepage": "https://github.com/ClickerMonkey/codeview#readme",
+  "homepage": "https://github.com/ClickerMonkey/folderview#readme",
   "bugs": {
-    "url": "https://github.com/ClickerMonkey/codeview/issues"
+    "url": "https://github.com/ClickerMonkey/folderview/issues"
   },
   "author": "ClickerMonkey"
 }

@@ -5,7 +5,7 @@
 import { esc } from './util.js';
 import { highlight as builtin } from './highlight.js';
 
-const SCOPES_ONLY = { name: 'codeview-scopes', type: 'light', fg: '#000000', bg: '#ffffff', settings: [] };
+const SCOPES_ONLY = { name: 'folderview-scopes', type: 'light', fg: '#000000', bg: '#ffffff', settings: [] };
 
 /** Scope prefixes, most specific first, and the kind each draws as (harness's table). */
 const SCOPE_KINDS = [

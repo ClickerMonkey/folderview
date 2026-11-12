@@ -17,7 +17,7 @@ export interface Scope {
   hidden: Set<string>;
   /** also hide the secret-looking files (.env, *.key, *.pem, id_rsa…) */
   hideSecrets: boolean;
-  /** excluded by pattern (--exclude, .codeviewignore, config): never listed, served, searched or zipped */
+  /** excluded by pattern (--exclude, .folderviewignore, config): never listed, served, searched or zipped */
   excluded: (rel: string, isDir?: boolean) => boolean;
 }
 
