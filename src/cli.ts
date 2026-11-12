@@ -92,6 +92,7 @@ console.log(`  http://${hostShown}:${running.port}${suffix}`);
 if (everywhere) for (const ip of lanAddresses()) console.log(`  http://${ip}:${running.port}${suffix}`);
 else if (s.host === '127.0.0.1') console.log('  (add --lan to open it from other devices)');
 if (s.exclude.length) console.log(`  excluding: ${s.exclude.join(', ')}`);
+console.log('  Every option and command: npx folderview --help');
 console.log('');
 console.log(`  Review feedback is saved to ${mdRel} (and ${jsonRel}).`);
 console.log('  For an agent: "' + agentPrompt(mdRel, jsonRel) + '"');

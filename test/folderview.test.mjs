@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { inside, list, isSecret } from '../dist/files.js';
 import { FileIndex } from '../dist/search.js';
 import { pathFilter, excluder, parseRules } from '../dist/glob.js';
-import { resolve as resolveConfig } from '../dist/config.js';
+import { resolve as resolveConfig, normaliseBase } from '../dist/config.js';
 import { crc32 } from '../dist/zip.js';
 import { Git } from '../dist/git.js';
 import { Review, toMarkdown } from '../dist/review.js';
@@ -296,6 +296,42 @@ test('downloads, folder zips, a token and a base path', async () => {
   } finally {
     await s.close();
   }
+});
+
+test('a nested base path: the page, its assets and chunks, files, search and live events all live under it', async () => {
+  const s = await start({ root, port: 0, host: '127.0.0.1', reviewDir: '.review', git: true, watch: true, readOnly: false, allowHosts: [], base: '/test/path/' });
+  const at = `http://127.0.0.1:${s.port}`;
+  try {
+    const noSlash = await fetch(at + '/test/path', { redirect: 'manual' });
+    assert.equal(noSlash.status, 301);
+    assert.equal(noSlash.headers.get('location'), '/test/path/');
+    for (const p of ['/', '/test/', '/api/info', '/test/api/info']) assert.equal((await fetch(at + p)).status, 404, p);
+    const html = await (await fetch(at + '/test/path/')).text();
+    // the page asks for everything relative to itself, so it works under any base
+    for (const m of html.matchAll(/(?:src|href)="([^"#]+)"/g)) if (!/^(data:|https?:)/.test(m[1])) assert.ok(!m[1].startsWith('/'), `${m[1]} is relative`);
+    assert.equal((await fetch(at + '/test/path/assets/main.js')).status, 200);
+    const main = await (await fetch(at + '/test/path/assets/main.js')).text();
+    const chunk = /["'](\.\/chunks\/[^"']+\.js)["']/.exec(main)?.[1];
+    assert.ok(chunk, 'main.js loads its chunks by relative path');
+    assert.equal((await fetch(at + '/test/path/assets/' + chunk.slice(2))).status, 200, chunk);
+    assert.equal((await fetch(at + '/test/path/api/info')).status, 200);
+    assert.equal(await (await fetch(at + '/test/path/raw/src/b.ts')).text(), 'const b = 1;\n');
+    assert.equal((await fetch(at + '/test/path/api/search?q=findMe')).status, 200);
+    const ev = await fetch(at + '/test/path/api/events');
+    assert.equal(ev.headers.get('content-type'), 'text/event-stream');
+    await ev.body.cancel();
+  } finally {
+    await s.close();
+  }
+});
+
+test('base paths: with or without slashes, a URL, and a path Git Bash rewrote', () => {
+  for (const b of ['test/path', '/test/path', '/test/path/', 'test//path/', 'https://example.com/test/path']) assert.equal(normaliseBase(b), '/test/path/');
+  assert.equal(normaliseBase(''), '/');
+  assert.equal(normaliseBase('/'), '/');
+  assert.throws(() => normaliseBase('C:/Program Files/Git/test/path'), /Git Bash/);
+  assert.throws(() => normaliseBase('a/../b'), /\.\./);
+  assert.throws(() => normaliseBase('a b'), /URL path/);
 });
 
 test('folderview review prints the open comments, or says there are none', () => {

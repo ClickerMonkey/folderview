@@ -86,7 +86,8 @@ Usage: folderview [folder] [options]
   -p, --port <n>          port to try first (default 4190; the next free one is used)
   -H, --host <addr>       address to listen on (default 127.0.0.1)
       --lan               listen on every interface (same as --host 0.0.0.0)
-      --base <path>       serve under a URL path, e.g. /code/ (behind a proxy)
+      --base <path>       serve under a URL path, e.g. code or team/code (behind a proxy;
+                          in Git Bash leave off the leading /, or it becomes a Windows path)
   -o, --open              open it in your browser
   -x, --exclude <globs>   never show, serve or search these (comma-separated, repeatable):
                           "*.log,dist/,/secrets,**/*.min.js"
@@ -316,9 +317,7 @@ export function resolve(argv: string[], env: NodeJS.ProcessEnv = process.env, cw
   for (const k of NUM_KEYS) num(k);
   const port = num('port');
   if (!Number.isInteger(port) || port > 65535) throw new ConfigError(`port must be 0–65535 (got ${port})`);
-  let base = String(get('base') || '/').trim();
-  if (!base.startsWith('/')) base = '/' + base;
-  if (!base.endsWith('/')) base += '/';
+  const base = normaliseBase(String(get('base') ?? '/'), sources['base'] ?? 'default');
   if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) throw new ConfigError(`No such folder: ${root}`);
 
   const settings: Settings = {
@@ -343,6 +342,25 @@ export function resolve(argv: string[], env: NodeJS.ProcessEnv = process.env, cw
     configFiles: [globalRaw ? globalFile : '', projectRaw ? projectFile : '', fs.existsSync(ignoreFile) ? ignoreFile : ''].filter(Boolean),
   };
   return { settings, help: flags.help, version: flags.version, printConfig: flags.printConfig };
+}
+
+/**
+ * A URL path to serve under, as "/a/b/": "test/path", "/test/path", "/test/path/" and "https://host/test/path" all
+ * work. Git Bash turns an argument like /test/path into C:/Program Files/Git/test/path before we see it: that is
+ * refused with how to avoid it, since it would silently serve everything under the wrong path.
+ */
+export function normaliseBase(raw: string, from = 'command line'): string {
+  let b = raw.trim().replace(/\\/g, '/');
+  if (/^https?:\/\//i.test(b)) b = new URL(b).pathname;
+  if (/^[a-z]:\//i.test(b))
+    throw new ConfigError(
+      `base looks like a Windows path (${raw}, from ${from}). Git Bash rewrites arguments that start with "/": write it without the leading slash (--base test/path) or set MSYS_NO_PATHCONV=1.`,
+    );
+  b = '/' + b.split('/').filter(Boolean).join('/') + '/';
+  if (b === '//') b = '/';
+  if (!/^[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$/.test(b)) throw new ConfigError(`base can only use URL path characters (got ${raw})`);
+  if (b.split('/').some((p) => p === '..' || p === '.')) throw new ConfigError(`base can't contain . or .. (got ${raw})`);
+  return b;
 }
 
 /** The settings as text, with secrets masked and where each came from. */

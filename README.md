@@ -164,7 +164,7 @@ folderview [folder] [options]
 | `-p, --port <n>` | `FOLDERVIEW_PORT` | `4190` | The port to try first; the next free one is used |
 | `-H, --host <addr>` | `FOLDERVIEW_HOST` | `127.0.0.1` | The address to listen on |
 | `--lan` | | | Same as `--host 0.0.0.0`: reachable from your phone and other devices |
-| `--base <path>` | `FOLDERVIEW_BASE` | `/` | Serve under a URL path, such as `/code/`, behind a reverse proxy |
+| `--base <path>` | `FOLDERVIEW_BASE` | `/` | Serve under a URL path, such as `code` or `team/code`, behind a reverse proxy. See [Under a path](#under-a-path). |
 | `-o, --open` | `FOLDERVIEW_OPEN` | off | Open it in your browser |
 | `-x, --exclude <globs>` | `FOLDERVIEW_EXCLUDE` | | Never show, serve, search or zip these. Comma-separated and repeatable. See [Excluding files](#excluding-files). |
 | `--hide <names>` | `FOLDERVIEW_HIDE` | | Exact names to hide everywhere (`.git` always is) |
@@ -179,6 +179,18 @@ folderview [folder] [options]
 | `--no-git` | `FOLDERVIEW_GIT=false` | git on | Don't use git |
 | `--no-watch` | `FOLDERVIEW_WATCH=false` | watch on | No live updates |
 | `--print-config` | | | Print the settings and where each came from, then exit |
+
+`folderview --help` prints every option and command. Agents should run it before guessing at flags.
+
+### Under a path
+
+`--base team/code` serves everything under `/team/code/`: the page, its scripts, files, search, live updates and the
+API. Any depth works, and `team/code`, `/team/code`, `/team/code/` and a full `https://host/team/code` mean the same.
+The token cookie is kept to that path, `/team/code` redirects to `/team/code/`, and nothing is served outside it. Point
+your proxy at folderview without stripping the path.
+
+In Git Bash on Windows, leave off the leading slash: Git Bash rewrites `/team/code` into `C:/Program Files/Git/team/code`
+before folderview sees it (folderview refuses that, and says why). `MSYS_NO_PATHCONV=1` turns the rewriting off.
 
 Settings come from these places, highest first:
 
