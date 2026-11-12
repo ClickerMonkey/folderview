@@ -103,6 +103,40 @@ When a file changes on disk, open pages update by themselves: the listing, the g
 4. **Watch it work.** codeview watches `comments.json`, so the agent's replies and resolutions appear in your
    browser as they happen.
 
+### Where to look for feedback
+
+codeview points you, or your agent, at the feedback in three places:
+
+- **When it starts:** the terminal shows where comments are saved, plus an instruction you can paste into an agent:
+
+  ```
+  Review feedback is saved to .review/REVIEW.md (and .review/comments.json).
+  For an agent: "Read .review/REVIEW.md. It lists review comments on files in this folder ..."
+  There are 2 open comments waiting: npx codeview review
+  ```
+
+- **While it runs:** each time the comments change, it prints a line. An agent that started codeview in the
+  background sees these in its output:
+
+  ```
+  [9:16:04 PM] review: 2 open comments (of 2) → .review/REVIEW.md  (or run: npx codeview review)
+  [9:16:24 PM] review: no open comments (2 resolved)
+  ```
+
+- **Any time:** `codeview review` prints the open comments in the folder (the same text as `REVIEW.md`), even when
+  codeview isn't running. Add `--all` to include resolved ones, or `--json` for a script.
+
+  ```sh
+  npx codeview review            # what's open, with instructions for an agent
+  npx codeview review ../app --all --json
+  ```
+
+To make an agent check on its own, add a line to its instructions file (`CLAUDE.md`, `AGENTS.md`, …):
+
+```md
+Before finishing a task, run `npx codeview review` and work through any open review comments.
+```
+
 Comments have replies, editing, resolve and reopen, and delete. Agents and scripts can also use the
 [API](#the-api) directly.
 

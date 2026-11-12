@@ -247,3 +247,20 @@ test('downloads, folder zips, a token and a base path', async () => {
     await s.close();
   }
 });
+
+test('codeview review prints the open comments, or says there are none', () => {
+  const dir = path.join(root, '.review-cli');
+  const r = new Review(dir, root);
+  const run = (...a) => execFileSync(process.execPath, [path.join(import.meta.dirname, '..', 'dist', 'cli.js'), 'review', root, '--review-dir', dir, ...a], { encoding: 'utf8' });
+  assert.match(run(), /No review comments yet/);
+  const c = r.add({ path: 'src/b.ts', line: 1, body: 'Rename b.', author: 'Phil' });
+  const out = run();
+  assert.match(out, /1 open/);
+  assert.match(out, /`src\/b\.ts:1` — Phil/);
+  assert.match(out, /Rename b\./);
+  r.update(c.id, { status: 'resolved' });
+  assert.match(run(), /No open review comments \(1 resolved/);
+  const json = JSON.parse(run('--all', '--json'));
+  assert.equal(json.comments.length, 1);
+  assert.match(json.instructions, /set that comment's "status" to "resolved"/);
+});

@@ -80,6 +80,7 @@ export const ENV: Record<string, keyof typeof DEFAULTS> = {
 export const HELP = `codeview: browse, search and review a folder in your browser
 
 Usage: codeview [folder] [options]
+       codeview review [folder] [--all] [--json]   print the review comments (open ones, unless --all)
 
   folder                  the folder to serve (default: the current folder)
   -p, --port <n>          port to try first (default 4190; the next free one is used)

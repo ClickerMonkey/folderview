@@ -173,7 +173,7 @@ export function renderReviewPage(el, filter) {
     setSetting('review', e.target.checked);
     emit('settings');
   };
-  el.querySelector('#copy-prompt').onclick = () => copy(PROMPT(md, json), 'Prompt copied');
+  el.querySelector('#copy-prompt').onclick = () => copy(state.info.review.prompt || PROMPT(md, json), 'Prompt copied');
   const clear = el.querySelector('#clear-resolved');
   if (clear)
     clear.onclick = async () => {

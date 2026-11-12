@@ -11,7 +11,7 @@ import { writeZip, ZIP_LIMITS } from './zip.js';
 import type { Settings } from './config.js';
 import { Git, type Status } from './git.js';
 import { FileIndex } from './search.js';
-import { Review, type CommentStatus } from './review.js';
+import { Review, agentPrompt, type CommentStatus } from './review.js';
 import { watchTree } from './watch.js';
 
 /** What the server needs: the resolved settings (see config.ts); tests pass a partial set. */
@@ -19,6 +19,8 @@ export type Options = Pick<Settings, 'root' | 'port' | 'host' | 'reviewDir' | 'r
   Partial<Pick<Settings, 'exclude' | 'hide' | 'showSecrets' | 'token' | 'base' | 'title' | 'author' | 'maxFileMb'>> & {
     /** how the review folder is named on the page (the screenshots keep theirs in a temporary folder) */
     reviewLabel?: string;
+    /** called when the comments change (added, answered, resolved; in the page or by hand) */
+    onReviewChange?: (open: number, total: number) => void;
   };
 
 export interface Running {
@@ -83,7 +85,10 @@ export async function start(opts: Options): Promise<Running> {
         broadcast('change', b);
       })
     : () => undefined;
-  review.onChange(() => broadcast('comments', { count: review.all().length }));
+  review.onChange(() => {
+    broadcast('comments', { count: review.all().length });
+    opts.onReviewChange?.(review.all().filter((c) => c.status === 'open').length, review.all().length);
+  });
   review.watch();
   const ping = setInterval(() => {
     for (const c of clients) c.write(': ping\n\n');
@@ -157,7 +162,12 @@ export async function start(opts: Options): Promise<Running> {
         gitPrefix: git?.prefix ?? '',
         author,
         readOnly: opts.readOnly,
-        review: { json: reviewRel, md: toRel(scope, review.mdPath), dir: opts.reviewLabel ?? opts.reviewDir },
+        review: {
+          json: reviewRel,
+          md: toRel(scope, review.mdPath),
+          dir: opts.reviewLabel ?? opts.reviewDir,
+          prompt: agentPrompt(toRel(scope, review.mdPath), reviewRel),
+        },
         hostname: os.hostname(),
         maxFile,
         token: !!token,
