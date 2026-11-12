@@ -6,7 +6,7 @@ import { Marked } from 'marked';
 import markedFootnote from 'marked-footnote';
 import DOMPurify from 'dompurify';
 import { copy, esc, join, norm, rawUrl } from './util.js';
-import { fileHref, href } from './state.js';
+import { fileHref, href, state } from './state.js';
 import { highlightLines, prepare } from './shiki.js';
 import { drawInto } from './mermaid.js';
 import { icon } from './icons.js';
@@ -15,7 +15,7 @@ import { icon } from './icons.js';
 export function codeBlockHtml(code, lang, caption = lang || 'text') {
   const name = 'x.' + (lang || 'txt');
   const lines = highlightLines(code.replace(/\n$/, ''), name);
-  return `<figure class="ui-code" data-lang="${esc(lang)}"><figcaption class="cbar"><span class="caption">${esc(caption)}</span><span class="ctools"><button class="icon-btn" data-cb="wrap" title="Wrap long lines" aria-label="Wrap long lines">${icon('wrap', 16)}</button><button class="icon-btn" data-cb="copy" title="Copy code" aria-label="Copy code">${icon('copy', 16)}</button></span></figcaption><pre class="code" tabindex="0"><code>${lines.join('\n')}</code></pre><textarea hidden>${esc(code)}</textarea></figure>`;
+  return `<figure class="ui-code${state.settings.wrap ? ' wrapped' : ''}" data-lang="${esc(lang)}"><figcaption class="cbar"><span class="caption">${esc(caption)}</span><span class="ctools"><button class="icon-btn${state.settings.wrap ? ' on' : ''}" data-cb="wrap" title="Wrap long lines" aria-label="Wrap long lines">${icon('wrap', 16)}</button><button class="icon-btn" data-cb="copy" title="Copy code" aria-label="Copy code">${icon('copy', 16)}</button></span></figcaption><pre class="code" tabindex="0"><code>${lines.join('\n')}</code></pre><textarea hidden>${esc(code)}</textarea></figure>`;
 }
 
 const mathBlock = {

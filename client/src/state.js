@@ -31,7 +31,7 @@ export function setSetting(k, v) {
 export const author = () => state.settings.author || state.info.author || 'reviewer';
 
 // ── the address: #/folder/path?open=name&m=search&q=…&line=12&tab=diff&view=grid ──
-const KEYS = ['open', 'view', 'm', 'q', 'scope', 'line', 'tab', 'opts', 'inc'];
+const KEYS = ['open', 'view', 'm', 'q', 'show', 'scope', 'line', 'tab', 'opts', 'inc'];
 export function where() {
   const h = location.hash.slice(1) || '/';
   const qi = h.indexOf('?');

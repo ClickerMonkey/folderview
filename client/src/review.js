@@ -4,7 +4,13 @@ import { author, commentsOn, fileHref, loadComments, nav, setSetting, state } fr
 import { markdownHtml as markdown } from './markdown.js';
 import { icon } from './icons.js';
 
-export const range = (c) => (c.line ? (c.endLine ? `L${c.line}–${c.endLine}` : `L${c.line}`) : 'File');
+export const range = (c) => (c.line ? (c.endLine ? `L${c.line}–${c.endLine}` : `L${c.line}`) : c.strokes?.length ? `Area ${areaNumber(c)}` : 'File');
+
+/** an image comment's number: its place among the file's marked areas */
+export const areaNumber = (c) =>
+  commentsOn(c.path)
+    .filter((x) => x.strokes?.length)
+    .findIndex((x) => x.id === c.id) + 1;
 
 async function changed() {
   await loadComments();
@@ -39,7 +45,7 @@ export function composerHtml(path, line, endLine) {
 /** file-level threads (no line) for the file header area */
 export function fileThreadsHtml(path, folder) {
   const list = commentsOn(path).filter((c) => !c.line && (state.settings.resolved || c.status === 'open'));
-  return list.map((c) => `<div class="thread">${threadHtml(c, folder)}</div>`).join('');
+  return list.map((c) => `<div class="thread">${c.strokes?.length ? `<div class="thread-where"><span class="pin static ${c.status}">${areaNumber(c)}</span> Marked area</div>` : ''}${threadHtml(c, folder)}</div>`).join('');
 }
 
 // ── actions (delegated, so threads work wherever they are drawn) ──
@@ -102,6 +108,15 @@ document.addEventListener('submit', async (e) => {
       const json = { path: f.dataset.path, body: text, author: author() };
       if (f.dataset.line) json.line = Number(f.dataset.line);
       if (f.dataset.end) json.endLine = Number(f.dataset.end);
+      if (f.getMarks) {
+        // an image comment: the hand-drawn marks, their area and a marked-up copy
+        const m = await f.getMarks();
+        if (!m) {
+          btn.disabled = false;
+          return;
+        }
+        Object.assign(json, m);
+      }
       await api('api/comments', { method: 'POST', json });
       f.remove();
       emit('composer-closed');
@@ -155,7 +170,7 @@ export function renderReviewPage(el, filter) {
         .map(
           (c) => `<div class="rcard"><div class="rwhere"><a class="pill" href="${fileHref(path, c.line ? { line: String(c.line) } : {})}">${range(c)}</a>${c.commit ? `<span class="faint">@ ${esc(c.commit)}</span>` : ''}</div>${
             c.quote ? `<pre class="quote">${esc(c.quote)}</pre>` : ''
-          }${threadHtml(c, path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')}</div>`,
+          }${c.image ? `<a href="${fileHref(path)}"><img class="rimg" src="api/comments/${esc(c.id)}/image.png" alt="The marked area" loading="lazy"></a>` : ''}${threadHtml(c, path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')}</div>`,
         )
         .join('')}</section>`,
     )

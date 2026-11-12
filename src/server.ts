@@ -11,7 +11,7 @@ import { writeZip, ZIP_LIMITS } from './zip.js';
 import type { Settings } from './config.js';
 import { Git, type Status } from './git.js';
 import { FileIndex } from './search.js';
-import { Review, agentPrompt, type CommentStatus } from './review.js';
+import { Review, agentPrompt, type Area, type CommentStatus } from './review.js';
 import { watchTree } from './watch.js';
 
 /** What the server needs: the resolved settings (see config.ts); tests pass a partial set. */
@@ -223,6 +223,22 @@ export async function start(opts: Options): Promise<Running> {
         }
         case '/api/git/log':
           return json(res, 200, { commits: await git.log(rel) });
+        case '/api/git/history':
+          return json(res, 200, await git.history(Math.max(0, Number(q('skip')) || 0)));
+        case '/api/git/commit-info': {
+          const h = q('h');
+          if (!isRev(h)) return json(res, 400, { error: 'bad revision' });
+          const info = await git.commitInfo(h);
+          info.files = info.files.filter((f) => visible(f.path) && (!reviewPrefix || !f.path.startsWith(reviewPrefix)));
+          return json(res, 200, info);
+        }
+        case '/api/git/commit-diff': {
+          const h = q('h');
+          const from = q('from');
+          if (!isRev(h)) return json(res, 400, { error: 'bad revision' });
+          if (from && inside(scope, from) === undefined) return json(res, 404, { error: 'not found' });
+          return text(res, await git.commitFileDiff(h, rel, from || undefined));
+        }
         case '/api/git/commit': {
           const h = q('h');
           if (!isRev(h)) return json(res, 400, { error: 'bad revision' });
@@ -236,8 +252,15 @@ export async function start(opts: Options): Promise<Running> {
       return text(res, fs.existsSync(review.mdPath) ? fs.readFileSync(review.mdPath, 'utf8') : 'No comments yet.\n', 'text/markdown; charset=utf-8');
     }
     if (p === '/api/comments' && method === 'GET') return json(res, 200, { comments: review.all() });
+    const img = /^\/api\/comments\/([0-9a-f]+)\/image\.png$/.exec(p);
+    if (img) {
+      const abs = review.imagePath(img[1] ?? '');
+      if (!abs) return json(res, 404, { error: 'not found' });
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return void fs.createReadStream(abs).pipe(res);
+    }
     if (p === '/api/comments' && method === 'POST') {
-      const b = await body(req);
+      const b = await body(req, 16_000_000);
       const rel = str(b['path']);
       if (inside(scope, rel) === undefined) return json(res, 400, { error: 'No such file' });
       if (!str(b['body']).trim()) return json(res, 400, { error: 'The comment is empty' });
@@ -249,6 +272,7 @@ export async function start(opts: Options): Promise<Running> {
         author: str(b['author']) || author,
         ...(line ? { line } : {}),
         ...(endLine ? { endLine } : {}),
+        ...imageMarks(b),
         ...(git ? { commit: (await gitStatus().catch(() => undefined))?.head ?? '' } : {}),
       });
       return json(res, 201, c);
@@ -393,14 +417,42 @@ function text(res: http.ServerResponse, body: string, type = 'text/plain; charse
   res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' }).end(body);
 }
 
-async function body(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+/** an image comment's marks: the area, the strokes, and the marked-up picture (a PNG data URL) */
+function imageMarks(b: Record<string, unknown>): { area?: Area; strokes?: number[][]; snapshot?: Buffer } {
+  const out: { area?: Area; strokes?: number[][]; snapshot?: Buffer } = {};
+  const a = b['area'];
+  if (a && typeof a === 'object' && !Array.isArray(a)) {
+    const r: Record<string, unknown> = Object.fromEntries(Object.entries(a));
+    const n = (k: string) => (typeof r[k] === 'number' && Number.isFinite(r[k]) && Number(r[k]) >= 0 ? Math.round(Number(r[k])) : undefined);
+    const [x, y, w, h] = [n('x'), n('y'), n('w'), n('h')];
+    if (x !== undefined && y !== undefined && w && h) out.area = { x, y, w, h };
+  }
+  const s = b['strokes'];
+  if (Array.isArray(s)) {
+    let budget = 20_000;
+    const strokes = s
+      .filter((st): st is unknown[] => Array.isArray(st))
+      .map((st) => st.filter((v): v is number => typeof v === 'number' && v >= 0 && v <= 1).map((v) => Math.round(v * 10000) / 10000))
+      .filter((st) => st.length >= 2 && st.length % 2 === 0 && (budget -= st.length) >= 0);
+    if (strokes.length) out.strokes = strokes;
+  }
+  const snap = typeof b['snapshot'] === 'string' ? /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(b['snapshot']) : null;
+  if (snap && out.strokes) {
+    const buf = Buffer.from(snap[1] ?? '', 'base64');
+    // a PNG, and nothing else
+    if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) out.snapshot = buf;
+  }
+  return out;
+}
+
+async function body(req: http.IncomingMessage, max = 1_000_000): Promise<Record<string, unknown>> {
   if (!String(req.headers['content-type'] ?? '').includes('application/json')) throw new Error('Send JSON');
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of req) {
     const b = Buffer.isBuffer(c) ? c : Buffer.from(String(c));
     size += b.length;
-    if (size > 1_000_000) throw new Error('Too large');
+    if (size > max) throw new Error('Too large');
     chunks.push(b);
   }
   const data: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');

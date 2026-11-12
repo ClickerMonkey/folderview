@@ -177,6 +177,50 @@ test('the server: pages, raw files, host and origin checks, comments', async () 
   }
 });
 
+test('history, a commit and its diffs, and comments on an area of an image', async () => {
+  const s = await start({ root, port: 0, host: '127.0.0.1', reviewDir: '.review-img', git: true, watch: false, readOnly: false, allowHosts: [] });
+  const base = `http://127.0.0.1:${s.port}`;
+  const post = (body) => fetch(base + '/api/comments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    const h = await (await fetch(base + '/api/git/history')).json();
+    assert.equal(h.commits.length, 1);
+    assert.equal(h.commits[0].subject, 'first');
+    assert.equal(h.commits[0].state, 'unknown', 'no remote, so nothing is pushed or not');
+    assert.equal(h.remotes, false);
+    const info = await (await fetch(base + '/api/git/commit-info?h=' + h.commits[0].hash)).json();
+    assert.equal(info.commit.subject, 'first');
+    const b = info.files.find((f) => f.path === 'src/b.ts');
+    assert.equal(b.state, 'added');
+    assert.equal(b.add, 1);
+    const d = await (await fetch(`${base}/api/git/commit-diff?h=${info.commit.full}&p=src/b.ts`)).text();
+    assert.match(d, /\+const b = 1;/);
+    assert.equal((await fetch(`${base}/api/git/commit-diff?h=;rm&p=src/b.ts`)).status, 400);
+
+    // a 1×1 PNG stands in for the marked-up picture
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const made = await post({ path: 'src/b.ts', body: 'This bit', strokes: [[0.1, 0.1, 0.5, 0.5], [2, 'x']], area: { x: 1, y: 2, w: 30, h: 40 }, snapshot: png });
+    assert.equal(made.status, 201);
+    const c = await made.json();
+    assert.deepEqual(c.area, { x: 1, y: 2, w: 30, h: 40 });
+    assert.deepEqual(c.strokes, [[0.1, 0.1, 0.5, 0.5]], 'points outside 0–1 are dropped');
+    assert.equal(c.image, `images/${c.id}.png`);
+    const img = await fetch(`${base}/api/comments/${c.id}/image.png`);
+    assert.equal(img.headers.get('content-type'), 'image/png');
+    assert.ok(fs.existsSync(path.join(root, '.review-img', c.image)));
+    const md = fs.readFileSync(path.join(root, '.review-img', 'REVIEW.md'), 'utf8');
+    assert.match(md, /src\/b\.ts \(marked area\)/);
+    assert.match(md, new RegExp(`!\\[The marked area\\]\\(images/${c.id}\\.png\\)`));
+    // something that isn't a PNG is not saved
+    const bad = await (await post({ path: 'src/b.ts', body: 'x', strokes: [[0.1, 0.1]], snapshot: 'data:image/png;base64,PHN2Zz4=' })).json();
+    assert.equal(bad.image, undefined);
+    await fetch(`${base}/api/comments/${c.id}`, { method: 'DELETE' });
+    assert.ok(!fs.existsSync(path.join(root, '.review-img', c.image)), 'deleting the comment deletes its picture');
+  } finally {
+    await s.close();
+    fs.rmSync(path.join(root, '.review-img'), { recursive: true, force: true });
+  }
+});
+
 test('exclude patterns: names, folders, anchored paths, ** and exceptions', () => {
   const ex = excluder(parseRules(['*.log', 'dist/', '/secret', 'docs/**/*.tmp', '!keep.log']));
   assert.ok(ex('a.log') && ex('deep/b.log'));

@@ -206,6 +206,91 @@ export class Git {
     return this.git(['show', '--no-color', '--format=%H%n%an <%ae>%n%ad%n%n%B', '-M', hash, '--', this.repoPath(rel)]);
   }
 
+  /**
+   * The repository's commits (those touching the served folder), newest first, each marked pushed or local, plus
+   * the upstream's commits not pulled yet (on the first page).
+   */
+  async history(skip = 0, limit = 50): Promise<History> {
+    const scope = this.prefix ? ['--', this.prefix] : [];
+    const remotes = (await this.git(['remote']).catch(() => '')).trim() !== '';
+    const upstream = (await this.git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(() => '')).trim() || undefined;
+    const h: History = { commits: [], incoming: [], more: false, remotes, ...(upstream ? { upstream } : {}) };
+    if (!(await this.hasHead())) return h;
+    const [out, localRaw, inRaw] = await Promise.all([
+      this.git(['log', `-n${limit + 1}`, `--skip=${skip}`, `--format=${LOG_FORMAT}`, 'HEAD', ...scope]),
+      remotes ? this.git(['rev-list', 'HEAD', '--not', '--remotes']).catch(() => '') : Promise.resolve(''),
+      upstream && !skip ? this.git(['log', '-n50', `--format=${LOG_FORMAT}`, 'HEAD..@{u}', ...scope]).catch(() => '') : Promise.resolve(''),
+    ]);
+    const local = new Set(localRaw.split('\n').filter(Boolean));
+    const all = parseLog(out);
+    h.more = all.length > limit;
+    h.commits = all.slice(0, limit).map((c) => ({ ...c, state: !remotes ? 'unknown' : local.has(c.full) ? 'local' : 'pushed' }));
+    h.incoming = parseLog(inRaw).map((c) => ({ ...c, state: 'incoming' }));
+    return h;
+  }
+
+  /** what a commit was, and which files (in the served folder) it changed, against its first parent */
+  async commitInfo(rev: string): Promise<CommitInfo> {
+    const raw = await this.git(['show', '-s', '--format=%H%x1f%h%x1f%an%x1f%ae%x1f%at%x1f%P%x1f%s%x1f%b', rev]);
+    const [full = '', hash = '', author = '', email = '', time = '0', parents = '', subject = '', ...rest] = raw.replace(/\n$/, '').split('\x1f');
+    const base = await this.parentOf(full);
+    const scope = this.prefix ? ['--', this.prefix] : [];
+    const [names, nums] = await Promise.all([
+      this.git(['diff', '--name-status', '-z', '-M', base, full, ...scope]),
+      this.git(['diff', '--numstat', '-z', '-M', base, full, ...scope]),
+    ]);
+    const files: CommitFile[] = [];
+    const recs = names.split('\0');
+    for (let i = 0; i < recs.length; i++) {
+      const s = recs[i];
+      if (!s) continue;
+      let from: string | undefined;
+      let file = recs[++i] ?? '';
+      if (s[0] === 'R' || s[0] === 'C') {
+        from = file;
+        file = recs[++i] ?? '';
+      }
+      const rel = this.fromRepo(file);
+      if (rel === undefined) continue;
+      const state: FileState = s[0] === 'A' || s[0] === 'C' ? 'added' : s[0] === 'D' ? 'deleted' : s[0] === 'R' ? 'renamed' : 'modified';
+      const f: CommitFile = { path: rel, state };
+      if (from) f.from = this.fromRepo(from) ?? from;
+      files.push(f);
+    }
+    const byPath = new Map(files.map((f) => [f.path, f]));
+    const nr = nums.split('\0');
+    for (let i = 0; i < nr.length; i++) {
+      const m = /^(\d+|-)\t(\d+|-)\t(.*)$/.exec(nr[i] ?? '');
+      if (!m) continue;
+      let file = m[3] ?? '';
+      if (!file) {
+        i++;
+        file = nr[++i] ?? '';
+      }
+      const f = byPath.get(this.fromRepo(file) ?? '');
+      if (f && m[1] !== '-') {
+        f.add = Number(m[1]);
+        f.del = Number(m[2]);
+      }
+    }
+    return {
+      commit: { full, hash, author, email, time: Number(time) * 1000, parents: parents.split(' ').filter(Boolean), subject, body: rest.join('\x1f').trim() },
+      files,
+    };
+  }
+
+  /** one file's diff in a commit, against the commit's first parent (a rename needs its old path too) */
+  async commitFileDiff(rev: string, rel: string, fromRel?: string): Promise<string> {
+    const full = (await this.git(['rev-parse', '--verify', rev + '^{commit}'])).trim();
+    const base = await this.parentOf(full);
+    const paths = [this.repoPath(rel), ...(fromRel ? [this.repoPath(fromRel)] : [])];
+    return this.git(['diff', '--no-color', '-M', base, full, '--', ...paths]);
+  }
+
+  private async parentOf(full: string): Promise<string> {
+    return (await this.git(['rev-parse', '--verify', '-q', full + '^1']).catch(() => '')).trim() || EMPTY_TREE;
+  }
+
   async userName(): Promise<string> {
     return (await this.git(['config', 'user.name']).catch(() => '')).trim();
   }
@@ -243,6 +328,49 @@ function stateOf(x: string, y: string): FileState {
   if (x === 'D' || y === 'D') return 'deleted';
   if (x === 'A') return 'added';
   return 'modified';
+}
+
+export interface LogEntry extends Commit {
+  full: string;
+  parents: string[];
+  /** pushed: on a remote; local: only here; incoming: on the upstream, not pulled; unknown: no remotes */
+  state: 'pushed' | 'local' | 'incoming' | 'unknown';
+}
+
+export interface History {
+  commits: LogEntry[];
+  incoming: LogEntry[];
+  more: boolean;
+  remotes: boolean;
+  upstream?: string;
+}
+
+export interface CommitFile {
+  path: string;
+  state: FileState;
+  from?: string;
+  add?: number;
+  del?: number;
+}
+
+export interface CommitInfo {
+  commit: { full: string; hash: string; author: string; email: string; time: number; parents: string[]; subject: string; body: string };
+  files: CommitFile[];
+}
+
+const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%at%x1f%P%x1f%s%x1e';
+/** git's empty tree: what a first commit is compared with */
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+function parseLog(out: string): Omit<LogEntry, 'state'>[] {
+  return out
+    .split('\x1e')
+    .map((r) => r.trim())
+    .filter(Boolean)
+    .map((r) => {
+      const [full = '', hash = '', author = '', time = '0', parents = '', subject = ''] = r.split('\x1f');
+      return { full, hash, author, time: Number(time) * 1000, parents: parents.split(' ').filter(Boolean), subject };
+    });
 }
 
 const nullDevice = () => (process.platform === 'win32' ? 'NUL' : '/dev/null');

@@ -48,7 +48,7 @@ Each kind of file gets its own view. Files with source text also get a **Source*
 | Code and text (200+ languages) | Highlighted, with line numbers, change bars from git, wrap, copy, download, and links to a line (`#…&line=12` or `12-20`). |
 | Markdown | Rendered GitHub-style: tables, task lists, `> [!NOTE]` alerts, footnotes, heading anchors, front matter, sanitised inline HTML, Mermaid (` ```mermaid `), math (`$…$`, `$$…$$`, ` ```math `). Relative links open in the viewer, and relative images load from the folder. |
 | `.mmd`, `.mermaid` | The diagram |
-| Images, SVG | The image and its size. Tap for full size. |
+| Images, SVG | The image and its size. Tap for full size. **Mark an area** lets you draw on it to comment on that spot. |
 | Audio, video | A player that can seek |
 | PDF | The browser's PDF viewer |
 | HTML | A sandboxed preview where scripts don't run |
@@ -57,6 +57,9 @@ Each kind of file gets its own view. Files with source text also get a **Source*
 | Jupyter notebooks | Cells, outputs and plots |
 | Fonts | Samples at several sizes, in your own text |
 | Anything else | A hex dump of the first bytes |
+
+The arrows in a file's header open the previous or next file in its folder (by name). Press <kbd>[</kbd> or
+<kbd>]</kbd>, use <kbd>←</kbd> <kbd>→</kbd> on a picture, or swipe a picture sideways on a phone.
 
 Every file has a **Download** button. Every folder has one too, which downloads the folder as a `.zip` of what the
 listing shows.
@@ -71,7 +74,13 @@ When the folder is in a git repository:
 - **Deleted files** still show, struck through, so you can open what they were.
 - **Branch:** the top bar shows the branch, its commit, and how far it is ahead of or behind its upstream.
 - **Changes:** lists every changed file with lines added and removed, and whether it's staged. It can also show
-  every diff on one page.
+  every diff on one page, where each file collapses on its own (or all at once) and takes comments on the whole
+  file or on a line. Long lines scroll sideways inside each diff, or wrap (the wrap button, or Settings → Wrap long
+  lines, which applies everywhere).
+- **History:** the Changes page's **History** tab lists the commits, newest first. Each is marked **Pushed** (on a
+  remote) or **Not pushed** (only in this copy), and commits on the upstream you haven't pulled yet are listed above
+  them. Tap a commit to see its message and every file it changed, with the same collapsible diffs (images show
+  before and after).
 - **Each file** has **Changes** (its diff against the last commit) and **History** (its commits; tap one to see what
   it changed). Images also get **Compare**: before and after, side by side.
 
@@ -93,7 +102,9 @@ When a file changes on disk, open pages update by themselves: the listing, the g
 ## Review mode: comments an agent can work through
 
 1. **Comment.** Tap a line number (Shift-click for a range), then **Comment**. The comment button in a file's header
-   comments on the whole file. You can comment on diff lines too. Turn on **Review mode** in Settings and a single
+   comments on the whole file. You can comment on diff lines too. On a picture, **Mark an area** and draw around
+   what you mean: the comment keeps the marks, the area they cover in the image's pixels, and a copy of the picture
+   with the marks drawn on it (`.review/images/<id>.png`, linked from `REVIEW.md` so an agent can look at it). Turn on **Review mode** in Settings and a single
    tap on any line starts a comment.
 2. **Saved.** Comments are saved to `.review/comments.json`. Each one keeps the quoted lines and the commit it was
    left on. The same comments are written to `.review/REVIEW.md`, grouped by file, with instructions for an agent.

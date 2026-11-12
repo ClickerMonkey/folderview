@@ -27,9 +27,22 @@ export interface Comment {
   status: CommentStatus;
   createdAt: string;
   updatedAt?: string;
+  /** an image comment: the marked area, in the image's own pixels */
+  area?: Area;
+  /** the hand-drawn marks, each a run of points [x0, y0, x1, y1, …] as fractions (0–1) of the image's size */
+  strokes?: number[][];
+  /** the image with the marks drawn on it, relative to the review folder (images/<id>.png) */
+  image?: string;
   /** the commit the file was at (short hash), when in git */
   commit?: string;
   replies?: Reply[];
+}
+
+export interface Area {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 interface Store {
@@ -125,7 +138,7 @@ export class Review {
     return this.comments;
   }
 
-  add(input: { path: string; line?: number; endLine?: number; body: string; author: string; commit?: string }): Comment {
+  add(input: { path: string; line?: number; endLine?: number; body: string; author: string; commit?: string; area?: Area; strokes?: number[][]; snapshot?: Buffer }): Comment {
     const c: Comment = {
       id: crypto.randomBytes(4).toString('hex'),
       path: input.path,
@@ -139,6 +152,13 @@ export class Review {
       if (input.endLine && input.endLine > input.line) c.endLine = input.endLine;
       const quote = this.quote(input.path, input.line, c.endLine ?? input.line);
       if (quote !== undefined) c.quote = quote;
+    }
+    if (input.area) c.area = input.area;
+    if (input.strokes?.length) c.strokes = input.strokes;
+    if (input.snapshot) {
+      fs.mkdirSync(path.join(this.dir, 'images'), { recursive: true });
+      c.image = `images/${c.id}.png`;
+      fs.writeFileSync(path.join(this.dir, c.image), input.snapshot);
     }
     if (input.commit) c.commit = input.commit;
     this.comments.push(c);
@@ -166,18 +186,32 @@ export class Review {
   }
 
   remove(id: string): boolean {
-    const n = this.comments.length;
+    const gone = this.comments.find((c) => c.id === id);
+    if (!gone) return false;
     this.comments = this.comments.filter((c) => c.id !== id);
-    if (this.comments.length === n) return false;
+    this.dropImage(gone);
     this.save();
     return true;
   }
 
   clearResolved(): number {
     const n = this.comments.length;
+    for (const c of this.comments) if (c.status === 'resolved') this.dropImage(c);
     this.comments = this.comments.filter((c) => c.status !== 'resolved');
     this.save();
     return n - this.comments.length;
+  }
+
+  /** the marked-up picture of an image comment, as a path inside the review folder (or undefined) */
+  imagePath(id: string): string | undefined {
+    const c = this.comments.find((x) => x.id === id);
+    if (!c?.image || !/^images\/[0-9a-f]+\.png$/.test(c.image)) return undefined;
+    const abs = path.join(this.dir, c.image);
+    return fs.existsSync(abs) ? abs : undefined;
+  }
+
+  private dropImage(c: Comment): void {
+    if (c.image && /^images\/[0-9a-f]+\.png$/.test(c.image)) fs.rmSync(path.join(this.dir, c.image), { force: true });
   }
 
   private quote(rel: string, from: number, to: number): string | undefined {
@@ -236,7 +270,7 @@ export function toMarkdown(comments: Comment[], jsonRel: string, { openOnly = fa
     '',
     '## How to work through this (for an agent)',
     '',
-    '- Each comment is on a file, or on lines of it (`path:line`). Paths are relative to the folder folderview serves.',
+    '- Each comment is on a file, on lines of it (`path:line`), or on an area of an image (marked by hand; `images/<id>.png` beside this file shows the marks). Paths are relative to the folder folderview serves.',
     '- The quoted code is what the lines said when the comment was left; the file may have moved on since, so find the code, not just the line number.',
     `- When a comment is dealt with, set its \`"status"\` to \`"resolved"\` in \`${jsonRel}\` and, if there is something to say, add a reply:`,
     '  `"replies": [{ "id": "a1", "author": "agent", "body": "Done: …", "at": "<ISO time>" }]`. The reviewer sees it live.',
@@ -252,9 +286,11 @@ export function toMarkdown(comments: Comment[], jsonRel: string, { openOnly = fa
         file = c.path;
         out.push(`### ${file || '(the whole folder)'}`, '');
       }
-      const where = c.line ? `${c.path}:${c.line}${c.endLine ? '-' + c.endLine : ''}` : `${c.path || '.'} (whole file)`;
+      const where = c.line ? `${c.path}:${c.line}${c.endLine ? '-' + c.endLine : ''}` : c.area ? `${c.path} (marked area)` : `${c.path || '.'} (whole file)`;
       out.push(`#### \`${where}\` — ${c.author}${c.commit ? ` @ ${c.commit}` : ''} · id \`${c.id}\``, '');
       if (c.quote) out.push('```' + langOf(c.path), c.quote, '```', '');
+      if (c.area) out.push(`Marked area: x ${c.area.x}, y ${c.area.y}, ${c.area.w} × ${c.area.h} px of the image.` + (c.image ? ` The marks are drawn on a copy: ${c.image} (beside this file).` : ''), '');
+      if (c.image) out.push(`![The marked area](${c.image})`, '');
       out.push(c.body, '');
       for (const r of c.replies ?? []) out.push(`> **${r.author}**: ${r.body.replace(/\n/g, '\n> ')}`, '');
     }

@@ -281,7 +281,9 @@ export function renderDiff(host, text, path, { comments = true, caption = '' } =
   host.innerHTML = `${meta.length ? `<pre class="commit-head">${esc(meta.join('\n'))}</pre>` : ''}${
     binary
       ? '<p class="note">A binary file changed; no line diff.</p>'
-      : `<figure class="ui-code">${codeBar(`${caption || path} · +${add} −${del}`)}<div class="diff code${state.settings.wrap ? ' wrap' : ''}" tabindex="0" data-path="${esc(path)}">${rows.join('')}</div></figure>`
+      : !d.hunks.length
+        ? '<p class="note">No lines changed (only its name or mode).</p>'
+      : `<figure class="ui-code">${codeBar(`${caption || path} · +${add} −${del}`)}<div class="diff code${state.settings.wrap ? ' wrap' : ''}${state.settings.review && comments ? ' review' : ''}" tabindex="0" data-path="${esc(path)}">${rows.join('')}</div></figure>`
   }`;
   const diff = host.querySelector('.diff');
   if (diff) {
@@ -298,8 +300,10 @@ export function renderDiff(host, text, path, { comments = true, caption = '' } =
   if (!diff || !comments) return;
   placeDiffThreads(diff);
   diff.addEventListener('click', (e) => {
-    const g = e.target.closest('.gut');
-    if (!g || state.info.readOnly) return;
+    if (state.info.readOnly || e.target.closest('.threads, .composer')) return;
+    // a line number, or (in review mode) anywhere on a line that isn't a text selection
+    const g = e.target.closest('.gut') || (state.settings.review && !String(getSelection()).trim() ? e.target.closest('.dl[data-n]') : null);
+    if (!g) return;
     const n = Number(g.dataset.n);
     diff.querySelectorAll(':scope > .composer').forEach((c) => c.remove());
     const row = diff.querySelector(`.dl[data-n="${n}"]`);

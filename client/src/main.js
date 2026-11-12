@@ -3,9 +3,9 @@ import { $, api, esc, on, emit, store, toast } from './util.js';
 import { loadComments, loadGit, nav, go, setSetting, state, where } from './state.js';
 import { renderTree, wireTree } from './tree.js';
 import { renderFolder, wireFolder, clearFilter } from './folder.js';
-import { closeFile, refreshFileThreads, renderFile } from './file.js';
+import { closeFile, refreshFileThreads, renderFile, step } from './file.js';
 import { focusSearch, forgetFiles, quickOpen, renderSearch, wireSearchBar } from './search.js';
-import { branchHtml, renderChanges } from './changes.js';
+import { branchHtml, refreshChangesThreads, renderChanges, renderHistory } from './changes.js';
 import { renderReviewPage, updateReviewBadge } from './review.js';
 import { icon } from './icons.js';
 
@@ -36,15 +36,16 @@ function layout() {
 let mainKey = '';
 async function renderMain(force = false) {
   const w = where();
-  const key = JSON.stringify([w.folder, w.m, w.q, w.scope, w.opts, w.inc, w.view, w.open]);
+  const key = JSON.stringify([w.folder, w.m, w.q, w.show, w.scope, w.opts, w.inc, w.view, w.open]);
   if (!force && key === mainKey) return;
   const scrolled = key === mainKey ? scroller($('main')).scrollTop : 0;
   mainKey = key;
   const m = $('main');
   if (busyTyping(m)) return; // don't wipe a reply being written; the next change redraws it
-  document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === w.m));
+  document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === (w.m === 'history' ? 'changes' : w.m)));
   if (w.m === 'search' && w.q) await renderSearch(m);
   else if (w.m === 'changes') await renderChanges(m);
+  else if (w.m === 'history') await renderHistory(m);
   else if (w.m === 'review') renderReviewPage(m, w.q);
   else await renderFolder(m);
   if (!(phone.matches && w.open)) scroller(m).scrollTop = scrolled;
@@ -92,7 +93,7 @@ function connect() {
     paintBar();
     const w = where();
     const openPath = w.open ? (w.folder ? w.folder + '/' : '') + w.open : '';
-    if (w.m === 'changes' ? b.git : !w.m && (b.folders.includes(w.folder) || b.git)) await renderMain(true);
+    if (w.m === 'changes' || w.m === 'history' ? b.git : !w.m && (b.folders.includes(w.folder) || b.git)) await renderMain(true);
     if (openPath && b.files.includes(openPath)) renderFile($('file'), true);
     if (wide.matches) renderTree();
   });
@@ -107,6 +108,7 @@ on('comments', () => {
   refreshFileThreads($('file'));
   const w = where();
   if (w.m === 'review' || !w.m) renderMain(true);
+  else if (w.m === 'changes') refreshChangesThreads($('main'));
   if (wide.matches) renderTree();
 });
 on('settings', () => {
@@ -132,7 +134,7 @@ function settingsPanel() {
   <label class="check"><input type="checkbox" data-s="resolved"> Show resolved comments in files</label>
   <label>Your name on comments <input data-s="author" placeholder="${esc(state.info.author)}" value="${esc(s.author)}"></label>
   <h3>Shortcuts</h3>
-  <dl class="keys"><dt><kbd>Ctrl</kbd> <kbd>P</kbd></dt><dd>Go to a file</dd><dt><kbd>/</kbd></dt><dd>Search</dd><dt><kbd>Esc</kbd></dt><dd>Close the file</dd><dt><kbd>Shift</kbd>-click</dt><dd>Select a range of lines</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>Save a comment</dd></dl>
+  <dl class="keys"><dt><kbd>Ctrl</kbd> <kbd>P</kbd></dt><dd>Go to a file</dd><dt><kbd>/</kbd></dt><dd>Search</dd><dt><kbd>Esc</kbd></dt><dd>Close the file</dd><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous / next file (← → on a picture; swipe on a phone)</dd><dt><kbd>Shift</kbd>-click</dt><dd>Select a range of lines</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>Save a comment</dd></dl>
   <p class="faint">folderview ${esc(state.info.version || '')} · ${esc(state.info.root || '')}</p>`;
   document.body.append(pop);
   for (const el of pop.querySelectorAll('[data-s]')) {
@@ -164,6 +166,9 @@ addEventListener('keydown', (e) => {
   } else if (e.key === '/' && !typing) {
     e.preventDefault();
     focusSearch();
+  } else if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && where().open && (e.key === '[' || e.key === ']' || ($('picwrap') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) {
+    e.preventDefault();
+    step(e.key === '[' || e.key === 'ArrowLeft' ? -1 : 1);
   } else if (e.key === 'Escape' && !typing && !$('qo') && where().open) {
     nav({ open: '', tab: '', line: '' });
   } else if (e.key === 'Escape' && document.activeElement === $('q')) $('q').blur();
@@ -214,7 +219,7 @@ async function boot() {
     (b) =>
       (b.onclick = () => {
         const w = where();
-        if (w.m === b.dataset.nav) go({ folder: w.folder });
+        if (w.m === b.dataset.nav || (w.m === 'history' && b.dataset.nav === 'changes')) go({ folder: w.folder });
         else go({ folder: w.folder, m: b.dataset.nav });
       }),
   );

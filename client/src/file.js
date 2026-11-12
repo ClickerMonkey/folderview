@@ -1,6 +1,7 @@
 // The opened file: a header, tabs that depend on its kind, and a viewer for each kind.
 import { $, api, ago, copy, esc, extOf, join, rawUrl, size } from './util.js';
-import { LABEL, LETTER, commentsOn, isIgnored, nav, state, where } from './state.js';
+import { LABEL, LETTER, commentsOn, href, isIgnored, load, nav, state, where } from './state.js';
+import { paintMarks, wireImage } from './ink.js';
 import { codeBlockHtml, renderMarkdown } from './markdown.js';
 import { diffMarks, parseDiff, placeDiffThreads, placeThreads, renderCode, renderDiff } from './code.js';
 import { composerHtml, fileThreadsHtml } from './review.js';
@@ -80,12 +81,19 @@ export async function renderFile(el, force = false) {
   const url = rawUrl(path);
   const st = change && change.state !== 'ignored' ? change.state : '';
   const nCom = commentsOn(path).filter((c) => c.status === 'open').length;
+  if (!state.cache.has(folder)) {
+    await load(folder).catch(() => []);
+    if (token !== current.token) return;
+  }
+  const [prev, next] = neighbours(folder, open);
   const head = `<header class="file-head">
     <button class="icon-btn back" id="back" aria-label="Back to the folder" title="Back to the folder">${icon('chevron-left')}</button>
     <span class="file-name" title="${esc(path)}">${esc(open)}</span>
     ${st ? `<span class="badge s-${st}" title="${LABEL[st]}">${LETTER[st] || '·'}</span>` : ''}
     ${nCom ? `<span class="pill warn" title="Open comments">${icon('chat', 12)} ${nCom}</span>` : ''}
     <span class="grow"></span>
+    <button class="icon-btn" id="prev-file" ${prev ? `title="Previous: ${esc(prev)} ( [ )" aria-label="Previous file: ${esc(prev)}"` : 'disabled title="No previous file" aria-label="No previous file"'}>${icon('arrow-left')}</button>
+    <button class="icon-btn" id="next-file" ${next ? `title="Next: ${esc(next)} ( ] )" aria-label="Next file: ${esc(next)}"` : 'disabled title="No next file" aria-label="No next file"'}>${icon('arrow-right')}</button>
     <button class="icon-btn hide-sm" id="copy-path" title="Copy the path" aria-label="Copy the path">${icon('link')}</button>
     ${state.info.readOnly ? '' : `<button class="icon-btn" id="comment-file" title="Comment on the whole file" aria-label="Comment on the whole file">${icon('chat')}</button>`}
     ${deleted ? '' : `<a class="icon-btn" href="${downloadUrl(path)}" download="${esc(open)}" title="Download" aria-label="Download">${icon('download')}</a><a class="icon-btn hide-sm" href="${url}" target="_blank" rel="noopener" title="Open the raw file" aria-label="Open the raw file">${icon('external')}</a>`}
@@ -100,6 +108,8 @@ export async function renderFile(el, force = false) {
   $('close').onclick = () => nav({ open: '', tab: '', line: '' });
   $('back').onclick = () => nav({ open: '', tab: '', line: '' });
   $('copy-path').onclick = () => copy(path, 'Path copied');
+  $('prev-file').onclick = () => step(-1);
+  $('next-file').onclick = () => step(1);
   const cf = $('comment-file');
   if (cf)
     cf.onclick = () => {
@@ -119,6 +129,23 @@ export async function renderFile(el, force = false) {
   if (keepScroll && !stale()) sc.scrollTop = keepScroll;
 }
 
+/** the files before and after this one in its folder, by name (folders and hidden ignored files skipped) */
+function neighbours(folder, name) {
+  let files = (state.cache.get(folder) || []).filter((e) => e.type !== 'folder');
+  if (state.settings.ignored === 'hide') files = files.filter((e) => !isIgnored(join(folder, e.name)));
+  const i = files.findIndex((e) => e.name === name);
+  if (i < 0) return ['', ''];
+  return [files[i - 1]?.name || '', files[i + 1]?.name || ''];
+}
+
+/** open the previous (-1) or next (1) file in the folder */
+export function step(dir) {
+  const { folder, open } = where();
+  if (!open) return;
+  const target = neighbours(folder, open)[dir < 0 ? 0 : 1];
+  if (target) nav({ open: target, tab: '', line: '' });
+}
+
 /** comments changed: redraw the threads in place (keeps scroll and drafts elsewhere) */
 export function refreshFileThreads(el) {
   const { folder, open } = where();
@@ -129,6 +156,7 @@ export function refreshFileThreads(el) {
   if (draft) t.append(draft);
   placeThreads(el.querySelector('#fbody > .code, #fbody .code:not(.diff)'));
   placeDiffThreads(el.querySelector('.diff'));
+  paintMarks();
 }
 
 async function viewer(tab, ctx) {
@@ -177,8 +205,9 @@ async function viewer(tab, ctx) {
   switch (kind) {
     case 'image':
     case 'svg': {
-      body.innerHTML = `<div class="stage" id="stage"><img id="pic" src="${url}?t=${e ? e.mtime : 0}" alt="${esc(path)}"></div><p class="faint hint">Click to see it at full size.</p>`;
+      body.innerHTML = `<div class="stage" id="stage"><div class="picwrap" id="picwrap"><img id="pic" src="${url}?t=${e ? e.mtime : 0}" alt="${esc(path)}" draggable="false"><svg class="marks" id="marks" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"></svg><div class="pins" id="pins"></div></div></div><div class="img-tools" id="img-tools"></div>`;
       const pic = $('pic');
+      wireImage({ path, stage: $('stage'), pic, tools: $('img-tools'), step });
       pic.onload = () => {
         const m = $('fmeta');
         if (m && !m.dataset.dim) {
@@ -186,7 +215,6 @@ async function viewer(tab, ctx) {
           m.insertAdjacentHTML('beforeend', ` · ${pic.naturalWidth} × ${pic.naturalHeight}`);
         }
       };
-      pic.onclick = () => $('stage').classList.toggle('actual');
       return;
     }
     case 'audio':
@@ -262,6 +290,7 @@ async function history(body, path, stale) {
         body.querySelectorAll('.commit').forEach((x) => x.classList.toggle('on', x === b));
         const d = await api(`api/git/commit?p=${encodeURIComponent(path)}&h=${b.dataset.h}`);
         renderDiff($('commit-diff'), d, path, { comments: false, caption: b.dataset.h });
+        $('commit-diff').insertAdjacentHTML('afterbegin', `<a class="btn small" href="${href({ folder: where().folder, m: 'history', q: b.dataset.h })}">${icon('diff', 14)} The whole commit</a>`);
         $('commit-diff').scrollIntoView({ block: 'nearest' });
       }),
   );

@@ -1,5 +1,10 @@
 // Icons: 24×24 stroked glyphs (from the harness web app's set), drawn with currentColor.
 export const ICONS = {
+  "pen": "<path d=\"M12 20h9\"/><path d=\"M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z\"/><path d=\"m15 5 3 3\"/>",
+  "arrow-left": "<path d=\"M19 12H5M12 19l-7-7 7-7\"/>",
+  "arrow-right": "<path d=\"M5 12h14M12 5l7 7-7 7\"/>",
+  "arrow-up": "<path d=\"M12 19V5M5 12l7-7 7 7\"/>",
+  "arrow-down": "<path d=\"M12 5v14M19 12l-7 7-7-7\"/>",
   "menu": "<path d=\"M4 6h16M4 12h16M4 18h16\"/>",
   "x": "<path d=\"M18 6 6 18M6 6l12 12\"/>",
   "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>",
