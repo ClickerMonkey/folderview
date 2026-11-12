@@ -1,0 +1,36 @@
+# Publishes codeview to npm with trusted publishing (no stored token): run it from the Actions tab, or push a
+# v* tag. Bump the version in package.json first, and run `npm test` locally (the tests need git and a browser-free
+# Node, but they are run before releasing, not here).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Pack and check, but don't publish
+        type: boolean
+        default: false
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # trusted publishing and provenance
+
+jobs:
+  publish:
+    # the one job allowed on a GitHub-hosted runner: npm's trusted publishing needs its OIDC token
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@^11.5.1
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --dry-run
+      - if: ${{ !inputs.dry_run }}
+        run: npm publish --provenance --access public
