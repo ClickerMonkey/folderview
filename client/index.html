@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f8f8fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16171c" media="(prefers-color-scheme: dark)" />
+    <title>codeview</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b5fd6'/><path d='M12 10l-6 6 6 6M20 10l6 6-6 6' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+    <link rel="stylesheet" href="assets/app.css" />
+    <script>
+      // the saved theme before anything draws, so a dark page never flashes white
+      try {
+        const t = localStorage.getItem('codeview:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="bar" id="bar">
+        <button class="brand" id="home" title="Back to the top folder">
+          <span class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5" /></svg></span><b id="repo">…</b>
+        </button>
+        <span id="branch"></span>
+        <form class="search" id="search-form" role="search">
+          <span id="search-icon"></span>
+          <input id="q" type="search" placeholder="Search in files" aria-label="Search in files" autocomplete="off" spellcheck="false" enterkeyhint="search" />
+          <button type="button" class="chip" id="scope">everywhere</button>
+        </form>
+        <nav class="bar-acts">
+          <button class="icon-btn" id="qo-btn" title="Go to a file (Ctrl+P)" aria-label="Go to a file"></button>
+          <button class="icon-btn" data-nav="changes" id="changes-btn" title="What changed since the last commit" aria-label="Changes" hidden><span class="count" id="changes-count" hidden>0</span></button>
+          <button class="icon-btn" data-nav="review" id="review-btn" title="Review comments" aria-label="Review"><span class="count warn" id="review-count" hidden>0</span></button>
+          <button class="icon-btn" id="settings-btn" title="Settings" aria-label="Settings"></button>
+          <span class="live" id="live" title="Live: updates as files change"></span>
+        </nav>
+      </header>
+      <div class="app" id="app">
+        <aside class="tree" aria-label="Folders"><ul class="roots" id="tree"></ul></aside>
+        <div class="splitter-wrap"><div class="splitter" id="splitter" title="Drag to resize"></div></div>
+        <section class="main" id="main" aria-label="Folder"></section>
+        <section class="file" id="file" aria-label="File" hidden></section>
+      </div>
+    </div>
+    <script type="module" src="assets/main.js"></script>
+  </body>
+</html>
