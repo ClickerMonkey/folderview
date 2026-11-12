@@ -222,9 +222,13 @@ export async function start(opts: Options): Promise<Running> {
           return void res.end(buf);
         }
         case '/api/git/log':
-          return json(res, 200, { commits: await git.log(rel) });
+        {
+          // a page of the file's commits, and whether there are more
+          const all = await git.log(rel, 31, Math.max(0, Number(q('skip')) || 0));
+          return json(res, 200, { commits: all.slice(0, 30), more: all.length > 30 });
+        }
         case '/api/git/history':
-          return json(res, 200, await git.history(Math.max(0, Number(q('skip')) || 0)));
+          return json(res, 200, await git.history(Math.max(0, Number(q('skip')) || 0), 50, q('q').trim().slice(0, 200)));
         case '/api/git/commit-info': {
           const h = q('h');
           if (!isRev(h)) return json(res, 400, { error: 'bad revision' });

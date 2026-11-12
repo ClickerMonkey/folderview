@@ -187,6 +187,12 @@ test('history, a commit and its diffs, and comments on an area of an image', asy
     assert.equal(h.commits[0].subject, 'first');
     assert.equal(h.commits[0].state, 'unknown', 'no remote, so nothing is pushed or not');
     assert.equal(h.remotes, false);
+    assert.equal((await (await fetch(base + '/api/git/history?q=FIRST')).json()).commits.length, 1, 'search ignores case');
+    assert.equal((await (await fetch(base + '/api/git/history?q=nothing-like-this')).json()).commits.length, 0);
+    assert.equal((await (await fetch(base + '/api/git/history?q=' + h.commits[0].hash)).json()).commits[0].hash, h.commits[0].hash, 'a hash finds its commit');
+    const log = await (await fetch(base + '/api/git/log?p=src/b.ts')).json();
+    assert.equal(log.commits.length, 1);
+    assert.equal(log.more, false);
     const info = await (await fetch(base + '/api/git/commit-info?h=' + h.commits[0].hash)).json();
     assert.equal(info.commit.subject, 'first');
     const b = info.files.find((f) => f.path === 'src/b.ts');

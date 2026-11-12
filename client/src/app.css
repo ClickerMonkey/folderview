@@ -2629,3 +2629,7 @@ a.commit:hover {
   opacity: 0.35;
   cursor: default;
 }
+.hist-find .filter {
+  width: 100%;
+  max-width: 520px;
+}

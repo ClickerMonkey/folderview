@@ -275,25 +275,39 @@ async function viewer(tab, ctx) {
 }
 
 async function history(body, path, stale) {
-  const { commits } = await api('api/git/log?p=' + encodeURIComponent(path));
+  const { commits, more } = await api('api/git/log?p=' + encodeURIComponent(path));
   if (stale()) return;
   if (!commits.length) {
     body.innerHTML = '<p class="note">No commits touch this file yet.</p>';
     return;
   }
-  body.innerHTML = `<div class="commits">${commits
-    .map((c) => `<button class="commit" data-h="${esc(c.hash)}"><code>${esc(c.hash)}</code><span class="subj">${esc(c.subject)}</span><span class="faint">${esc(c.author)} · ${ago(c.time)}</span></button>`)
-    .join('')}</div><div id="commit-diff"></div>`;
-  body.querySelectorAll('[data-h]').forEach(
-    (b) =>
-      (b.onclick = async () => {
-        body.querySelectorAll('.commit').forEach((x) => x.classList.toggle('on', x === b));
-        const d = await api(`api/git/commit?p=${encodeURIComponent(path)}&h=${b.dataset.h}`);
-        renderDiff($('commit-diff'), d, path, { comments: false, caption: b.dataset.h });
-        $('commit-diff').insertAdjacentHTML('afterbegin', `<a class="btn small" href="${href({ folder: where().folder, m: 'history', q: b.dataset.h })}">${icon('diff', 14)} The whole commit</a>`);
-        $('commit-diff').scrollIntoView({ block: 'nearest' });
-      }),
-  );
+  const row = (c) => `<button class="commit" data-h="${esc(c.hash)}"><code>${esc(c.hash)}</code><span class="subj">${esc(c.subject)}</span><span class="faint">${esc(c.author)} · ${ago(c.time)}</span></button>`;
+  body.innerHTML = `<div class="commits">${commits.map(row).join('')}</div>${more ? '<button class="btn small" id="log-more">Show older commits</button>' : ''}<div id="commit-diff"></div>`;
+  let shown = commits.length;
+  const moreBtn = $('log-more');
+  if (moreBtn)
+    moreBtn.onclick = async () => {
+      moreBtn.disabled = true;
+      const next = await api(`api/git/log?p=${encodeURIComponent(path)}&skip=${shown}`).catch(() => null);
+      if (stale() || !next) return void (moreBtn.disabled = false);
+      shown += next.commits.length;
+      body.querySelector('.commits').insertAdjacentHTML('beforeend', next.commits.map(row).join(''));
+      if (next.more) moreBtn.disabled = false;
+      else moreBtn.remove();
+    };
+  // one handler for every row, old ones loaded later included
+  body.querySelector('.commits').onclick = (e) => {
+    const b = e.target.closest('[data-h]');
+    if (b) showCommit(b).catch(() => {});
+  };
+  async function showCommit(b) {
+    body.querySelectorAll('.commit').forEach((x) => x.classList.toggle('on', x === b));
+    const d = await api(`api/git/commit?p=${encodeURIComponent(path)}&h=${b.dataset.h}`);
+    if (stale()) return;
+    renderDiff($('commit-diff'), d, path, { comments: false, caption: b.dataset.h });
+    $('commit-diff').insertAdjacentHTML('afterbegin', `<a class="btn small" href="${href({ folder: where().folder, m: 'history', q: b.dataset.h })}">${icon('diff', 14)} The whole commit</a>`);
+    $('commit-diff').scrollIntoView({ block: 'nearest' });
+  }
 }
 
 async function hex(body, url, stale) {

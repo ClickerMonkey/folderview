@@ -68,6 +68,7 @@ export async function renderChanges(el) {
     }
     return;
   }
+  if (list.length > 80) el.querySelector('#all-diffs').insertAdjacentHTML('beforebegin', `<p class="note">Showing the first 80 diffs of ${list.length.toLocaleString()} changed files.</p>`);
   diffList(el.querySelector('#all-diffs'), list.slice(0, 80), {
     url: (c) => 'api/git/diff?p=' + encodeURIComponent(c.path),
     link: (c) => fileHref(c.path, { tab: 'diff' }),
@@ -213,19 +214,40 @@ function commitRow(c) {
 }
 const hrefFor = (hash) => href({ folder: where().folder, m: 'history', q: hash });
 
-/** commits drawn so far (kept so More and a redraw don't start over) */
+/** the history drawn so far (kept so going back from a commit lands where you were), and its search */
 let hist = null;
+const pageScroll = () => (matchMedia('(max-width: 759px)').matches ? document.scrollingElement : document.getElementById('main'));
 
 export async function renderHistory(el) {
   if (!state.git) return noRepo(el);
   const q = where().q;
   if (q) return renderCommit(el, q);
-  el.innerHTML = `<header class="head"><h2 class="page-title">${icon('diff')} Changes</h2>${branchHtml()}</header>${tabsHtml('history')}<div id="hist"><div class="skeleton" style="width:60%"></div></div>`;
+  const find = hist?.find || '';
+  el.innerHTML = `<header class="head"><h2 class="page-title">${icon('diff')} Changes</h2>${branchHtml()}</header>${tabsHtml('history')}
+  <div class="hist-find"><input class="filter" id="hist-q" type="search" placeholder="Find a commit: words from its message, or a hash" value="${esc(find)}" aria-label="Find a commit"></div>
+  <div id="hist"><div class="skeleton" style="width:60%"></div></div>`;
   wireTabs(el);
+  const input = el.querySelector('#hist-q');
+  let timer = 0;
+  input.oninput = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(el, input.value.trim()), 300);
+  };
+  if (hist && hist.head === state.git.head && hist.find === find) {
+    drawHistory(el);
+    const y = hist.scroll || 0;
+    requestAnimationFrame(() => (pageScroll().scrollTop = y));
+  } else await load(el, find);
+}
+
+async function load(el, find) {
+  const box = el.querySelector('#hist');
   try {
-    if (!hist || hist.head !== state.git.head) hist = { head: state.git.head, ...(await api('api/git/history')) };
+    const got = await api('api/git/history' + (find ? '?q=' + encodeURIComponent(find) : ''));
+    if (!box.isConnected) return;
+    hist = { head: state.git.head, find, ...got };
   } catch (err) {
-    el.querySelector('#hist').innerHTML = `<p class="note">${esc(err.message)}</p>`;
+    box.innerHTML = `<p class="note">${esc(err.message)}</p>`;
     return;
   }
   drawHistory(el);
@@ -235,27 +257,56 @@ function drawHistory(el) {
   const h = hist;
   const box = el.querySelector('#hist');
   if (!box) return;
-  const nLocal = h.commits.filter((c) => c.state === 'local').length;
-  const summary = !h.remotes
-    ? 'No remote: nothing here has been pushed anywhere.'
-    : [h.upstream ? `Tracking <code>${esc(h.upstream)}</code>.` : 'No upstream branch.', nLocal ? `${nLocal}${h.more && nLocal === h.commits.length ? '+' : ''} not pushed.` : 'Everything shown is pushed.', h.incoming.length ? `${h.incoming.length} not pulled yet.` : ''].filter(Boolean).join(' ');
+  const summary = h.find
+    ? `${h.commits.length}${h.more ? '+' : ''} ${h.commits.length === 1 && !h.more ? 'commit matches' : 'commits match'}.`
+    : !h.remotes
+      ? 'No remote: nothing here has been pushed anywhere.'
+      : [
+          h.upstream ? `Tracking <code>${esc(h.upstream)}</code>.` : 'No upstream branch.',
+          h.localTotal && h.localTotal !== '0' ? `${h.localTotal} not pushed.` : 'Everything is pushed.',
+          h.incomingTotal ? `${h.incomingTotal} not pulled yet${h.incomingTotal > h.incoming.length ? ` (the newest ${h.incoming.length} below)` : ''}.` : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
   box.innerHTML = `<p class="meta hist-sum">${summary}</p>
-  ${h.incoming.length ? `<h3 class="group-title">${icon('arrow-down', 14)} Not pulled yet</h3><div class="commits">${h.incoming.map(commitRow).join('')}</div><h3 class="group-title">This branch</h3>` : ''}
-  ${h.commits.length ? `<div class="commits">${h.commits.map(commitRow).join('')}</div>` : '<p class="empty">No commits yet.</p>'}
-  ${h.more ? '<button class="btn" id="hist-more">Show more</button>' : ''}`;
+  ${!h.find && h.incoming.length ? `<h3 class="group-title">${icon('arrow-down', 14)} Not pulled yet</h3><div class="commits">${h.incoming.map(commitRow).join('')}</div><h3 class="group-title">This branch</h3>` : ''}
+  ${h.commits.length ? `<div class="commits" id="hist-list">${h.commits.map(commitRow).join('')}</div>` : `<p class="empty">${h.find ? 'No commit matches that.' : 'No commits yet.'}</p>`}
+  <div id="hist-more-box">${h.more ? '<button class="btn" id="hist-more">Show more</button>' : ''}</div>`;
+  // remember where the list was scrolled, for coming back from a commit
+  box.onclick = (e) => {
+    if (e.target.closest('a.commit')) hist.scroll = pageScroll().scrollTop;
+  };
   const more = box.querySelector('#hist-more');
-  if (more)
-    more.onclick = async () => {
-      more.disabled = true;
-      const next = await api('api/git/history?skip=' + h.commits.length).catch(() => null);
-      if (!next) return void (more.disabled = false);
-      h.commits.push(...next.commits);
-      h.more = next.more;
-      drawHistory(el);
-    };
+  if (!more) return;
+  // the next page loads by itself as the end of the list comes into view (the button works too)
+  const next = async () => {
+    if (more.disabled || hist !== h) return;
+    more.disabled = true;
+    more.textContent = 'Loading…';
+    const got = await api(`api/git/history?skip=${h.commits.length}${h.find ? '&q=' + encodeURIComponent(h.find) : ''}`).catch(() => null);
+    if (hist !== h || !more.isConnected) return;
+    more.disabled = false;
+    more.textContent = 'Show more';
+    if (!got) return;
+    // a hash search's own hit can come again in the next page: skip what's already shown
+    const seen = new Set(h.commits.map((c) => c.full));
+    const fresh = got.commits.filter((c) => !seen.has(c.full));
+    h.commits.push(...fresh);
+    h.more = got.more;
+    box.querySelector('#hist-list')?.insertAdjacentHTML('beforeend', fresh.map(commitRow).join(''));
+    if (!h.more) {
+      io.disconnect();
+      more.remove();
+    } else if (more.getBoundingClientRect().top < innerHeight + 600) next(); // still in view: keep going
+  };
+  more.onclick = next;
+  const io = new IntersectionObserver((es) => es.some((x) => x.isIntersecting) && next(), { rootMargin: '600px' });
+  io.observe(more);
 }
 
 // ── one commit ──
+const MAX_DIFFS = 120;
+const MAX_ROWS = 1000;
 const commits = new Map();
 
 async function renderCommit(el, hash) {
@@ -275,7 +326,8 @@ async function renderCommit(el, hash) {
   const c = info.commit;
   const known = hist && [...hist.commits, ...hist.incoming].find((x) => x.full === c.full);
   const [ic, label, title] = known ? STATE[known.state] : STATE.unknown;
-  const all = where().show !== 'files';
+  // a huge commit opens on its file list: drawing thousands of diffs at once would bog the page down
+  const all = where().show ? where().show === 'all' : info.files.length <= MAX_DIFFS;
   const add = info.files.reduce((n, f) => n + (f.add || 0), 0),
     del = info.files.reduce((n, f) => n + (f.del || 0), 0);
   el.querySelector('#commit').innerHTML = `<div class="commit-card">
@@ -286,8 +338,9 @@ async function renderCommit(el, hash) {
   </div>
   ${
     info.files.length
-      ? `<div class="head"><span class="meta"><span class="plus">+${add}</span> <span class="minus">−${del}</span> in ${info.files.length} files</span><span class="grow"></span><button class="btn${all ? '' : ' on'}" data-cv="files">Files</button><button class="btn${all ? ' on' : ''}" data-cv="">All diffs</button></div>
-  ${all ? '' : `<div class="rows">${info.files.map((f) => fileRow(f, esc(hrefFor(hash)), false)).join('')}</div>`}
+      ? `<div class="head"><span class="meta"><span class="plus">+${add}</span> <span class="minus">−${del}</span> in ${info.files.length} files</span><span class="grow"></span><button class="btn${all ? '' : ' on'}" data-cv="files">Files</button><button class="btn${all ? ' on' : ''}" data-cv="all">All diffs</button></div>
+  ${all ? '' : `<div class="rows">${info.files.slice(0, MAX_ROWS).map((f) => fileRow(f, esc(hrefFor(hash)), false)).join('')}</div>${info.files.length > MAX_ROWS ? `<p class="note">Showing the first ${MAX_ROWS.toLocaleString()} of ${info.files.length.toLocaleString()} files.</p>` : ''}`}
+  ${all && info.files.length > MAX_DIFFS ? `<p class="note">Showing the first ${MAX_DIFFS} diffs of ${info.files.length.toLocaleString()} files.</p>` : ''}
   ${all ? '<div id="all-diffs"></div>' : ''}`
       : '<p class="empty">This commit changed nothing in this folder.</p>'
   }`;
@@ -296,12 +349,13 @@ async function renderCommit(el, hash) {
   el.querySelectorAll('.rows .row').forEach((r, i) => {
     r.onclick = (e) => {
       e.preventDefault();
-      nav({ show: '' });
+      nav({ show: 'all' });
+      if (i >= MAX_DIFFS) return;
       requestAnimationFrame(() => el.querySelectorAll('#all-diffs .diff-file')[i]?.scrollIntoView({ block: 'start' }));
     };
   });
   if (!all || !info.files.length) return;
-  diffList(el.querySelector('#all-diffs'), info.files.slice(0, 120), {
+  diffList(el.querySelector('#all-diffs'), info.files.slice(0, MAX_DIFFS), {
     url: (f) => `api/git/commit-diff?h=${encodeURIComponent(c.full)}&p=${encodeURIComponent(f.path)}${f.from ? '&from=' + encodeURIComponent(f.from) : ''}`,
     link: (f) => fileHref(f.path, { tab: 'history' }),
     comments: false,

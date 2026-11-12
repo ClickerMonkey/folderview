@@ -189,8 +189,8 @@ export class Git {
     });
   }
 
-  async log(rel: string, limit = 30): Promise<Commit[]> {
-    const out = await this.git(['log', '--follow', `-n${limit}`, '--format=%h%x1f%an%x1f%at%x1f%s%x1e', '--', this.repoPath(rel)]).catch(() => '');
+  async log(rel: string, limit = 30, skip = 0): Promise<Commit[]> {
+    const out = await this.git(['log', '--follow', `-n${limit}`, `--skip=${skip}`, '--format=%h%x1f%an%x1f%at%x1f%s%x1e', '--', this.repoPath(rel)]).catch(() => '');
     return out
       .split('\x1e')
       .map((r) => r.trim())
@@ -210,22 +210,53 @@ export class Git {
    * The repository's commits (those touching the served folder), newest first, each marked pushed or local, plus
    * the upstream's commits not pulled yet (on the first page).
    */
-  async history(skip = 0, limit = 50): Promise<History> {
+  async history(skip = 0, limit = 50, q = ''): Promise<History> {
     const scope = this.prefix ? ['--', this.prefix] : [];
-    const remotes = (await this.git(['remote']).catch(() => '')).trim() !== '';
-    const upstream = (await this.git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(() => '')).trim() || undefined;
-    const h: History = { commits: [], incoming: [], more: false, remotes, ...(upstream ? { upstream } : {}) };
-    if (!(await this.hasHead())) return h;
-    const [out, localRaw, inRaw] = await Promise.all([
-      this.git(['log', `-n${limit + 1}`, `--skip=${skip}`, `--format=${LOG_FORMAT}`, 'HEAD', ...scope]),
-      remotes ? this.git(['rev-list', 'HEAD', '--not', '--remotes']).catch(() => '') : Promise.resolve(''),
-      upstream && !skip ? this.git(['log', '-n50', `--format=${LOG_FORMAT}`, 'HEAD..@{u}', ...scope]).catch(() => '') : Promise.resolve(''),
+    const none = () => '';
+    // a search: words in the message (any case), or the start of a hash
+    const find = q ? ['-i', '-F', `--grep=${q}`] : [];
+    const first = !skip && !q;
+    // every question at once (each git call costs a process start, slow on Windows); the ones that can't apply
+    // (no upstream, no remote, no commits yet) just fail to ''
+    const [remoteList, up, out, hashOut, inRaw, inCount, localRaw, localScoped] = await Promise.all([
+      this.git(['remote']).catch(none),
+      this.git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(none),
+      this.git(['log', `-n${limit + 1}`, `--skip=${skip}`, `--format=${LOG_FORMAT}`, ...find, 'HEAD', ...scope]).catch(none),
+      /^[0-9a-f]{4,40}$/i.test(q) && !skip ? this.git(['log', '-n1', `--format=${LOG_FORMAT}`, q, '--']).catch(none) : '',
+      first ? this.git(['log', '-n50', `--format=${LOG_FORMAT}`, 'HEAD..@{u}', ...scope]).catch(none) : '',
+      first ? this.git(['rev-list', '--count', 'HEAD..@{u}', ...scope]).catch(none) : '',
+      // the commits only here (up to a limit, so a never-pushed giant history stays quick)
+      this.git(['rev-list', `--max-count=${LOCAL_CAP + 1}`, 'HEAD', '--not', '--remotes']).catch(none),
+      first && this.prefix ? this.git(['rev-list', '--count', `--max-count=${LOCAL_CAP + 1}`, 'HEAD', '--not', '--remotes', ...scope]).catch(none) : '',
     ]);
-    const local = new Set(localRaw.split('\n').filter(Boolean));
-    const all = parseLog(out);
+    const remotes = remoteList.trim() !== '';
+    const upstream = up.trim() || undefined;
+    const h: History = { commits: [], incoming: [], incomingTotal: 0, more: false, remotes, ...(upstream ? { upstream } : {}) };
+    let all = parseLog(out);
     h.more = all.length > limit;
-    h.commits = all.slice(0, limit).map((c) => ({ ...c, state: !remotes ? 'unknown' : local.has(c.full) ? 'local' : 'pushed' }));
-    h.incoming = parseLog(inRaw).map((c) => ({ ...c, state: 'incoming' }));
+    all = all.slice(0, limit);
+    const hit = parseLog(hashOut)[0];
+    if (hit && !all.some((c) => c.full === hit.full)) all.unshift(hit);
+    h.commits = all.map((c) => ({ ...c, state: remotes ? 'pushed' : 'unknown' }));
+    const localList = localRaw.split('\n').filter(Boolean);
+    if (remotes && all.length) {
+      let local = new Set(localList);
+      if (localList.length > LOCAL_CAP) {
+        // more unpushed commits than the list holds: ask again for just this page's stretch of time (the unpushed
+        // ones no older than its oldest commit, a day's slack for clock skew)
+        const oldest = Math.floor(Math.min(...all.map((c) => c.time)) / 1000 - 86400);
+        local = new Set((await this.git(['rev-list', `--since=${oldest}`, 'HEAD', '--not', '--remotes']).catch(none)).split('\n').filter(Boolean));
+      }
+      for (const c of h.commits) if (local.has(c.full)) c.state = 'local';
+    }
+    if (upstream) {
+      h.incoming = parseLog(inRaw).map((c) => ({ ...c, state: 'incoming' }));
+      h.incomingTotal = Number(inCount.trim()) || h.incoming.length;
+    }
+    if (remotes && first) {
+      const n = this.prefix ? Number(localScoped.trim()) || 0 : localList.length;
+      h.localTotal = n > LOCAL_CAP ? `${LOCAL_CAP}+` : String(n);
+    }
     return h;
   }
 
@@ -339,7 +370,11 @@ export interface LogEntry extends Commit {
 
 export interface History {
   commits: LogEntry[];
+  /** the upstream's commits not pulled yet (the newest 50), and how many there are in all */
   incoming: LogEntry[];
+  incomingTotal: number;
+  /** how many commits are not pushed ("1000+" past the count's limit); first page only */
+  localTotal?: string;
   more: boolean;
   remotes: boolean;
   upstream?: string;
@@ -358,7 +393,8 @@ export interface CommitInfo {
   files: CommitFile[];
 }
 
-const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%at%x1f%P%x1f%s%x1e';
+const LOCAL_CAP = 1000;
+const LOG_FORMAT ='%H%x1f%h%x1f%an%x1f%at%x1f%P%x1f%s%x1e';
 /** git's empty tree: what a first commit is compared with */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 

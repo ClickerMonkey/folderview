@@ -80,7 +80,8 @@ When the folder is in a git repository:
 - **History:** the Changes page's **History** tab lists the commits, newest first. Each is marked **Pushed** (on a
   remote) or **Not pushed** (only in this copy), and commits on the upstream you haven't pulled yet are listed above
   them. Tap a commit to see its message and every file it changed, with the same collapsible diffs (images show
-  before and after).
+  before and after). Long histories load a page at a time as you scroll, and the search box finds a commit by words
+  in its message or by its hash.
 - **Each file** has **Changes** (its diff against the last commit) and **History** (its commits; tap one to see what
   it changed). Images also get **Compare**: before and after, side by side.
 
