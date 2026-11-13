@@ -104,3 +104,6 @@ export function debounce(fn, ms) {
 const handlers = new Map();
 export const on = (type, fn) => (handlers.get(type) || handlers.set(type, new Set()).get(type)).add(fn);
 export const emit = (type, data) => handlers.get(type)?.forEach((fn) => fn(data));
+
+/** a path as HTML that may break after each slash, so a long one wraps at its folders */
+export const pathHtml = (p) => esc(p).replaceAll('/', '/<wbr>');

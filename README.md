@@ -74,7 +74,7 @@ When the folder is in a git repository:
 - **Deleted files** still show, struck through, so you can open what they were.
 - **Branch:** the top bar shows the branch, its commit, and how far it is ahead of or behind its upstream.
 - **Changes:** lists every changed file with lines added and removed, and whether it's staged. It can also show
-  every diff on one page, where each file collapses on its own (or all at once) and takes comments on the whole
+  the diffs themselves, 50 files a page (**View all** puts every one on a single page), where each file collapses on its own (or all at once) and takes comments on the whole
   file or on a line. Long lines scroll sideways inside each diff, or wrap (the wrap button, or Settings → Wrap long
   lines, which applies everywhere).
 - **History:** the Changes page's **History** tab lists the commits, newest first. Each is marked **Pushed** (on a
@@ -82,6 +82,7 @@ When the folder is in a git repository:
   them. Tap a commit to see its message and every file it changed, with the same collapsible diffs (images show
   before and after). Long histories load a page at a time as you scroll, and the search box finds a commit by words
   in its message or by its hash.
+- **Long names** show in full: a path wraps at its folders, and a file's name in its header scrolls sideways.
 - **Each file** has **Changes** (its diff against the last commit) and **History** (its commits; tap one to see what
   it changed). Images also get **Compare**: before and after, side by side.
 

@@ -87,37 +87,52 @@ export async function renderFolder(m) {
     : grid
       ? `<div class="grid">${shown.map(tile).join('')}</div>`
       : `<div class="rows">${shown.map(row).join('')}</div>`;
-  const readme = es.find((e) => /^readme(\.md|\.markdown|\.txt)?$/i.test(e.name) && e.type === 'file');
+  const readme = es.find((e) => /^readme(.md|.markdown|.txt)?$/i.test(e.name) && e.type === 'file');
   const zipName = (folder ? parts[parts.length - 1] : state.info.name) + '.zip';
-  m.innerHTML = `<header class="head"><nav class="crumbs" aria-label="Folder trail">${crumbs}</nav>
-    <a class="icon-btn" href="api/zip?p=${encodeURIComponent(folder)}" download="${esc(zipName)}" title="Download this folder as a .zip" aria-label="Download this folder as a .zip">${icon('download')}</a></header>
-  <div class="head"><input class="filter" id="filter" type="search" placeholder="Filter this folder" value="${esc(filter)}" aria-label="Filter this folder">
-    <div class="tools"><span class="seg"><button class="btn${grid ? '' : ' on'}" data-v="list" title="List" aria-label="List">${icon('list', 16)}</button><button class="btn${grid ? ' on' : ''}" data-v="grid" title="Thumbnails" aria-label="Thumbnails">${icon('grid', 16)}</button></span>
+  const headHtml = `<nav class="crumbs" aria-label="Folder trail">${crumbs}</nav>
+    <a class="icon-btn" href="api/zip?p=${encodeURIComponent(folder)}" download="${esc(zipName)}" title="Download this folder as a .zip" aria-label="Download this folder as a .zip">${icon('download')}</a>`;
+  const toolsHtml = `<span class="seg"><button class="btn${grid ? '' : ' on'}" data-v="list" title="List" aria-label="List">${icon('list', 16)}</button><button class="btn${grid ? ' on' : ''}" data-v="grid" title="Thumbnails" aria-label="Thumbnails">${icon('grid', 16)}</button></span>
     <select class="btn" id="sort" aria-label="Sort by"><option value="name"${sortBy === 'name' ? ' selected' : ''}>Name</option><option value="mtime"${sortBy === 'mtime' ? ' selected' : ''}>Newest</option><option value="size"${sortBy === 'size' ? ' selected' : ''}>Largest</option></select>
-    <button class="btn" id="search-here" title="Search inside this folder">${icon('search', 16)}<span class="hide-sm">Search here</span></button></div>
-    <span class="meta">${nF} folders · ${all.length - nF} files</span></div>
-  ${body}
-  ${readme && !open ? `<section class="card readme"><div class="card-head">${icon('book', 16)} ${esc(readme.name)}</div><article class="md" id="readme"></article></section>` : ''}`;
-  const f = $('filter');
-  f.oninput = () => {
-    filter = f.value.toLowerCase();
-    const at = f.selectionStart;
-    renderFolder(m).then(() => {
-      const g = $('filter');
-      g.focus();
-      g.setSelectionRange(at, at);
-    });
-  };
-  f.onkeydown = (e) => {
-    if (e.key === 'Enter') m.querySelector('[data-e]')?.click();
-  };
+    <button class="btn" id="search-here" title="Search inside this folder">${icon('search', 16)}<span class="hide-sm">Search here</span></button>`;
+  const readmeHtml = readme && !open ? `<section class="card readme"><div class="card-head">${icon('book', 16)} ${esc(readme.name)}</div><article class="md" id="readme"></article></section>` : '';
+  // A redraw of the same folder (a live update, typing in the filter) keeps the filter box itself: rebuilding it
+  // would drop its focus, and on a phone the keyboard with it.
+  const shell = m.querySelector(':scope > .folder-page');
+  const same = shell && shell.dataset.folder === folder && $('filter');
+  const readmeKey = readmeHtml ? join(folder, readme.name) + '@' + readme.mtime : '';
+  if (same) {
+    shell.querySelector('.f-head').innerHTML = headHtml;
+    shell.querySelector('.f-tools').innerHTML = toolsHtml;
+    shell.querySelector('.f-meta').textContent = `${nF} folders · ${all.length - nF} files`;
+    shell.querySelector('.f-body').innerHTML = body;
+    const rm = shell.querySelector('.f-readme');
+    if (rm.dataset.key !== readmeKey) {
+      rm.dataset.key = readmeKey;
+      rm.innerHTML = readmeHtml;
+    }
+  } else {
+    m.innerHTML = `<div class="folder-page" data-folder="${esc(folder)}"><header class="head f-head">${headHtml}</header>
+  <div class="head"><input class="filter" id="filter" type="search" placeholder="Filter this folder" value="${esc(filter)}" aria-label="Filter this folder" autocomplete="off" spellcheck="false" enterkeyhint="go">
+    <div class="tools f-tools">${toolsHtml}</div>
+    <span class="meta f-meta">${nF} folders · ${all.length - nF} files</span></div>
+  <div class="f-body">${body}</div>
+  <div class="f-readme" data-key="${esc(readmeKey)}">${readmeHtml}</div></div>`;
+    const f = $('filter');
+    f.oninput = () => {
+      filter = f.value.toLowerCase();
+      renderFolder(m);
+    };
+    f.onkeydown = (e) => {
+      if (e.key === 'Enter') m.querySelector('.f-body [data-e]')?.click();
+    };
+  }
   $('sort').onchange = (e) => {
     sortBy = e.target.value;
     store('sort', sortBy);
     renderFolder(m);
   };
   $('search-here').onclick = () => focusSearch('here');
-  if (readme && !open) {
+  if (readme && !open && !$('readme')?.childElementCount) {
     const p = join(folder, readme.name);
     const key = p + '@' + readme.mtime;
     const draw = (t) => {

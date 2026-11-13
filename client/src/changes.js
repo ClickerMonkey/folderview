@@ -1,6 +1,6 @@
 // The Changes pages: what's uncommitted (every changed file and, if asked, all their diffs), the commit history
 // (pushed, only here, or not pulled yet), and one commit with all of its diffs.
-import { ago, api, esc, extOf, rawUrl } from './util.js';
+import { ago, api, esc, extOf, pathHtml, rawUrl } from './util.js';
 import { IMG } from './file.js';
 
 const isPic = (p) => IMG.has(extOf(p)) || extOf(p) === 'svg';
@@ -59,7 +59,7 @@ export async function renderChanges(el) {
   if (!list.length) return;
   if (!all) {
     // fetch the diffs now, so All diffs opens drawn (no "Loading…" flash)
-    for (const c of list.slice(0, 40)) {
+    for (const c of list.slice(0, PAGE)) {
       const u = 'api/git/diff?p=' + encodeURIComponent(c.path);
       if (!isPic(c.path))
         api(u)
@@ -68,8 +68,7 @@ export async function renderChanges(el) {
     }
     return;
   }
-  if (list.length > 80) el.querySelector('#all-diffs').insertAdjacentHTML('beforebegin', `<p class="note">Showing the first 80 diffs of ${list.length.toLocaleString()} changed files.</p>`);
-  diffList(el.querySelector('#all-diffs'), list.slice(0, 80), {
+  pagedDiffs(el.querySelector('#all-diffs'), list, {
     url: (c) => 'api/git/diff?p=' + encodeURIComponent(c.path),
     link: (c) => fileHref(c.path, { tab: 'diff' }),
     comments: !state.info.readOnly,
@@ -83,7 +82,50 @@ export async function renderChanges(el) {
 }
 
 function fileRow(c, href, staged) {
-  return `<a class="row s-${c.state}" href="${href}"><span class="ico">${icon(c.state === 'deleted' ? 'trash' : 'file', 18)}</span><span class="nm">${esc(c.path)}${c.from ? ` <span class="faint">← ${esc(c.from)}</span>` : ''}</span><span class="marks">${staged ? '<span class="pill" title="Staged">staged</span>' : ''}${badge(c.state)}</span><span class="sz">${c.add !== undefined ? `<span class="plus">+${c.add}</span> <span class="minus">−${c.del || 0}</span>` : ''}</span><span class="tm">${LABEL[c.state]}</span></a>`;
+  return `<a class="row s-${c.state}" href="${href}"><span class="ico">${icon(c.state === 'deleted' ? 'trash' : 'file', 18)}</span><span class="nm">${pathHtml(c.path)}${c.from ? ` <span class="faint">← ${pathHtml(c.from)}</span>` : ''}</span><span class="marks">${staged ? '<span class="pill" title="Staged">staged</span>' : ''}${badge(c.state)}</span><span class="sz">${c.add !== undefined ? `<span class="plus">+${c.add}</span> <span class="minus">−${c.del || 0}</span>` : ''}</span><span class="tm">${LABEL[c.state]}</span></a>`;
+}
+
+/** files' diffs shown a page at a time: drawing hundreds at once bogs the page down */
+const PAGE = 50;
+/** each list's page (by its key: 'now' or a commit), and whether it shows them all */
+const pages = new Map();
+
+function pagedDiffs(host, files, opts) {
+  const n = files.length;
+  const st = pages.get(opts.key) || { page: 0, all: false };
+  pages.set(opts.key, st);
+  st.page = Math.min(st.page, Math.max(0, Math.ceil(n / PAGE) - 1));
+  const draw = (scroll) => {
+    const from = st.all ? 0 : st.page * PAGE,
+      to = st.all ? n : Math.min(n, from + PAGE);
+    const bar =
+      n <= PAGE
+        ? ''
+        : `<div class="pager">${
+            st.all
+              ? `<span class="meta">All ${n.toLocaleString()} files</span>`
+              : `<button class="btn small" data-pg="-1"${st.page ? '' : ' disabled'}>${icon('chevron-left', 14)}<span class="hide-sm"> Previous</span></button><span class="meta">Files ${from + 1}–${to} of ${n.toLocaleString()}</span><button class="btn small" data-pg="1"${to < n ? '' : ' disabled'}><span class="hide-sm">Next </span>${icon('chevron-right', 14)}</button>`
+          }<span class="grow"></span><button class="btn small${st.all ? ' on' : ''}" data-pg="all" aria-pressed="${st.all}" title="${st.all ? 'Show 50 files at a time' : 'Show every file’s diff on one page (slow with hundreds)'}">View all</button></div>`;
+    host.innerHTML = `${bar}<div class="pdiffs"></div>${bar}`;
+    diffList(host.querySelector('.pdiffs'), files.slice(from, to), opts);
+    host.querySelectorAll('[data-pg]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          if (b.dataset.pg === 'all') st.all = !st.all;
+          else st.page += Number(b.dataset.pg);
+          draw(true);
+        }),
+    );
+    if (scroll) host.scrollIntoView({ block: 'start' });
+  };
+  draw(false);
+}
+
+/** show one file of a paged list: turn to its page */
+function pageTo(key, i) {
+  const st = pages.get(key) || { page: 0, all: false };
+  if (!st.all) st.page = Math.floor(i / PAGE);
+  pages.set(key, st);
 }
 
 /**
@@ -99,7 +141,7 @@ function diffList(host, files, { url, link, comments, key, picture }) {
     sec.className = 'diff-file' + (shut ? ' folded' : '');
     sec.dataset.path = c.path;
     sec.dataset.fk = foldKey(c);
-    sec.innerHTML = `<h3 class="group-title"><button class="mini fold" data-fold="one" aria-expanded="${!shut}" title="Collapse or expand" aria-label="Collapse or expand ${esc(c.path)}">${icon('chevron-down', 16)}</button><a href="${link(c)}">${esc(c.path)}</a>${badge(c.state)}${
+    sec.innerHTML = `<h3 class="group-title"><button class="mini fold" data-fold="one" aria-expanded="${!shut}" title="Collapse or expand" aria-label="Collapse or expand ${esc(c.path)}">${icon('chevron-down', 16)}</button><a href="${link(c)}">${pathHtml(c.path)}</a>${badge(c.state)}${
       c.add !== undefined ? `<span class="sz faint"><span class="plus">+${c.add}</span> <span class="minus">−${c.del || 0}</span></span>` : ''
     }<span class="ncom"></span><span class="grow"></span>${
       comments ? `<button class="mini" data-fcom title="Comment on the whole file" aria-label="Comment on ${esc(c.path)}">${icon('chat', 14)}<span class="hide-sm"> Comment</span></button>` : ''
@@ -326,7 +368,7 @@ async function renderCommit(el, hash) {
   const c = info.commit;
   const known = hist && [...hist.commits, ...hist.incoming].find((x) => x.full === c.full);
   const [ic, label, title] = known ? STATE[known.state] : STATE.unknown;
-  // a huge commit opens on its file list: drawing thousands of diffs at once would bog the page down
+  // a huge commit opens on its file list (its diffs are a page at a time either way)
   const all = where().show ? where().show === 'all' : info.files.length <= MAX_DIFFS;
   const add = info.files.reduce((n, f) => n + (f.add || 0), 0),
     del = info.files.reduce((n, f) => n + (f.del || 0), 0);
@@ -340,7 +382,6 @@ async function renderCommit(el, hash) {
     info.files.length
       ? `<div class="head"><span class="meta"><span class="plus">+${add}</span> <span class="minus">−${del}</span> in ${info.files.length} files</span><span class="grow"></span><button class="btn${all ? '' : ' on'}" data-cv="files">Files</button><button class="btn${all ? ' on' : ''}" data-cv="all">All diffs</button></div>
   ${all ? '' : `<div class="rows">${info.files.slice(0, MAX_ROWS).map((f) => fileRow(f, esc(hrefFor(hash)), false)).join('')}</div>${info.files.length > MAX_ROWS ? `<p class="note">Showing the first ${MAX_ROWS.toLocaleString()} of ${info.files.length.toLocaleString()} files.</p>` : ''}`}
-  ${all && info.files.length > MAX_DIFFS ? `<p class="note">Showing the first ${MAX_DIFFS} diffs of ${info.files.length.toLocaleString()} files.</p>` : ''}
   ${all ? '<div id="all-diffs"></div>' : ''}`
       : '<p class="empty">This commit changed nothing in this folder.</p>'
   }`;
@@ -349,13 +390,14 @@ async function renderCommit(el, hash) {
   el.querySelectorAll('.rows .row').forEach((r, i) => {
     r.onclick = (e) => {
       e.preventDefault();
+      pageTo(c.full, i);
+      const path = info.files[i].path;
       nav({ show: 'all' });
-      if (i >= MAX_DIFFS) return;
-      requestAnimationFrame(() => el.querySelectorAll('#all-diffs .diff-file')[i]?.scrollIntoView({ block: 'start' }));
+      requestAnimationFrame(() => el.querySelector(`#all-diffs .diff-file[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'start' }));
     };
   });
   if (!all || !info.files.length) return;
-  diffList(el.querySelector('#all-diffs'), info.files.slice(0, MAX_DIFFS), {
+  pagedDiffs(el.querySelector('#all-diffs'), info.files, {
     url: (f) => `api/git/commit-diff?h=${encodeURIComponent(c.full)}&p=${encodeURIComponent(f.path)}${f.from ? '&from=' + encodeURIComponent(f.from) : ''}`,
     link: (f) => fileHref(f.path, { tab: 'history' }),
     comments: false,

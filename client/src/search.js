@@ -1,5 +1,5 @@
 // Search: the bar at the top, the results page (everywhere or in one folder), and quick open (Ctrl+P).
-import { $, api, baseOf, debounce, esc, parentOf } from './util.js';
+import { $, api, baseOf, debounce, esc, parentOf, pathHtml } from './util.js';
 import { fileHref, go, nav, where } from './state.js';
 import { badge, stateOf } from './folder.js';
 import { icon } from './icons.js';
@@ -105,7 +105,7 @@ export async function renderSearch(el) {
   const nameList = names.length
     ? `<section class="sgroup"><h3 class="group-title">Files named like this</h3><div class="rows">${names
         .slice(0, 100)
-        .map((f) => `<a class="row" href="${fileHref(f.path)}"><span class="ico">${icon('file', 18)}</span><span class="nm">${esc(f.path)}</span><span class="marks">${badge(stateOf(f.path, 'file'))}</span></a>`)
+        .map((f) => `<a class="row fit" href="${fileHref(f.path)}"><span class="ico">${icon('file', 18)}</span><span class="nm">${pathHtml(f.path)}</span><span class="marks">${badge(stateOf(f.path, 'file'))}</span></a>`)
         .join('')}</div></section>`
     : '';
   const hits = withLines

@@ -1,6 +1,6 @@
 {
   "name": "folderview",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Browse, search and review any folder in your browser: highlighted code, rendered markdown with mermaid and math, git status and diffs, full-text search, downloads, and review comments saved where an LLM can read them.",
   "type": "module",
   "bin": {
