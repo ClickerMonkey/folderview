@@ -17,7 +17,7 @@ function fail(msg: string): never {
 
 // folderview is deprecated: hitl (Human In The Loop) replaces it and does everything it does. Said on every run, on stderr
 // (so it never mixes with output a script or an MCP client reads).
-if (!process.env['FOLDERVIEW_NO_DEPRECATION']) process.stderr.write('\n  folderview is deprecated: hitl (Human In The Loop) replaces it and does everything folderview does, plus reviews,\n  approvals and one inbox. Switch: npx hitl init   (npx hitl import brings in your .review/ folder)\n  https://clickermonkey.github.io/hitl/\n\n');
+if (!process.env['FOLDERVIEW_NO_DEPRECATION']) process.stderr.write('\n  folderview is deprecated: hitl (Human In The Loop) replaces it and does everything folderview does, plus reviews,\n  approvals and one inbox. Switch: npx hitloop init   (npx hitloop import brings in your .review/ folder)\n  https://clickermonkey.github.io/hitl/\n\n');
 const argv = process.argv.slice(2);
 const reviewCommand = argv[0] === 'review';
 const all = reviewCommand && argv.includes('--all');

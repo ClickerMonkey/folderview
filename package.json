@@ -1,7 +1,7 @@
 {
   "name": "folderview",
-  "version": "0.3.0",
-  "description": "Deprecated: replaced by hitl (Human In The Loop, npx hitl), which does everything folderview does. Browse, search and review any folder in your browser: highlighted code, rendered markdown with mermaid and math, git status and diffs, full-text search, downloads, and review comments saved where an LLM can read them.",
+  "version": "0.3.1",
+  "description": "Deprecated: replaced by hitl (Human In The Loop, npx hitloop), which does everything folderview does. Browse, search and review any folder in your browser: highlighted code, rendered markdown with mermaid and math, git status and diffs, full-text search, downloads, and review comments saved where an LLM can read them.",
   "type": "module",
   "bin": {
     "folderview": "dist/cli.js"
@@ -19,7 +19,7 @@
     "build:client": "node scripts/build-client.mjs",
     "watch:client": "node scripts/build-client.mjs --watch",
     "dev": "npm run build && node dist/cli.js",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "test": "npm run build && node --test --test-force-exit test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "screenshots": "node scripts/screenshots.mjs",
     "prepack": "npm run build"
