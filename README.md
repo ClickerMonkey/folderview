@@ -1,10 +1,10 @@
 # folderview
 
 > [!IMPORTANT]
-> **folderview has been replaced by [hitl](https://clickermonkey.github.io/hitl/) — Human In The Loop.** hitl does everything folderview did (browsing, search, git and review comments), plus
+> **folderview has been replaced by [hitl](https://clickermonkey.github.io/hitloop/) — Human In The Loop.** hitl does everything folderview did (browsing, search, git and review comments), plus
 > reviews, approvals, notes to the agent and one inbox for every project. This package is deprecated and gets no new features.
 >
-> Switch: `npx hitloop init` in a project (`npx hitloop import` brings in your `.review/` folder). Site: https://clickermonkey.github.io/hitl/ · Code: https://github.com/ClickerMonkey/hitl
+> Switch: `npx hitloop init` in a project (`npx hitloop import` brings in your `.review/` folder). Site: https://clickermonkey.github.io/hitloop/ · Code: https://github.com/ClickerMonkey/hitloop
 
 
 Browse, search and review any folder in your browser, on your computer or your phone.
